@@ -268,7 +268,7 @@
 
 (def webhook-width
   "Width of the rendered png of html to be sent to Webhook."
-  1024)
+  512)
 
 (defn send-webhook-event!
   "Post a photo for a given Card by rendering its result into an image and sending it, with other info attached"
