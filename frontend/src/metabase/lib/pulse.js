@@ -40,6 +40,11 @@ export function channelIsValid(channel, channelSpec) {
         fieldsAreValid(channel, channelSpec) &&
         scheduleIsValid(channel)
       );
+    case "webhook":
+      return (
+        fieldsAreValid(channel, channelSpec) &&
+        scheduleIsValid(channel)
+      );
     default:
       return false;
   }

@@ -10,6 +10,7 @@
             [metabase.events :as events]
             [metabase.integrations.slack :as slack]
             [metabase.integrations.telegram :as telegram]
+            [metabase.integrations.ds_webhook :as ds_webhook]
             [metabase.models.card :refer [Card]]
             [metabase.models.collection :refer [Collection]]
             [metabase.models.dashboard :refer [Dashboard]]
@@ -214,6 +215,15 @@
    :completed   (telegram/telegram-configured?)
    :triggered   :always})
 
+(defmethod admin-checklist-entry :set-ds-webhook-settings
+  [_]
+  {:title       (tru "Set Dashboard Subscription webhook")
+   :group       (tru "Get connected")
+   :description (tru "Yyou can send automated updates via pulses and alerts to your webhook.")
+   :link        "/admin/settings/ds-webhook"
+   :completed   (ds_webhook/webhook-configured?)
+   :triggered   :always})
+
 (defmethod admin-checklist-entry :invite-team-members
   [_]
   {:title       (tru "Invite team members")
@@ -265,7 +275,7 @@
 (defn- admin-checklist-values []
   (map
    admin-checklist-entry
-   [:add-a-database :set-up-email :set-slack-credentials :set-telegram-credentials :invite-team-members :hide-irrelevant-tables
+   [:add-a-database :set-up-email :set-slack-credentials :set-telegram-credentials :set-ds-webhook-settings :invite-team-members :hide-irrelevant-tables
     :organize-questions :create-metrics :create-segments]))
 
 (defn- add-next-step-info

@@ -23,12 +23,14 @@ export const CHANNEL_ICONS = {
   email: "mail",
   slack: "slack",
   telegram: "telegram",
+  webhook: "webhook",
 };
 
 const CHANNEL_NOUN_PLURAL = {
   email: t`Emails`,
   slack: t`Slack messages`,
   telegram: t`Telegram messages`,
+  webhook: t`Webhook subscriptions`,
 };
 
 export default class PulseEditChannels extends Component {
@@ -182,7 +184,7 @@ export default class PulseEditChannels extends Component {
             {field.type === "string" && (
               <TextInput
                 colorScheme="admin"
-                placeholder={t`chat id (number id or @yourchannelname)`}
+                placeholder={t`${channel.channel_type === 'telegram' ? 'chat id (number id or @yourchannelname)' : 'value'}`}
                 padding="sm"
                 borderRadius="md"
                 value={valueForField(field)}
@@ -318,6 +320,7 @@ export default class PulseEditChannels extends Component {
       email: { name: t`Email`, type: "email" },
       slack: { name: t`Slack`, type: "slack" },
       telegram: { name: t`Telegram`, type: "telegram" },
+      webhook: { name: t`Webhook`, type: "webhook" },
     };
     return (
       <ul className="bordered rounded bg-white">

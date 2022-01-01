@@ -6,6 +6,7 @@
             [metabase.email.messages :as messages]
             [metabase.integrations.slack :as slack]
             [metabase.integrations.telegram :as telegram]
+            [metabase.integrations.ds_webhook :as ds_webhook]
             [metabase.models.card :refer [Card]]
             [metabase.models.dashboard :refer [Dashboard]]
             [metabase.models.dashboard-card :refer [DashboardCard]]
@@ -262,6 +263,21 @@
                                    chat-id)))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
+;;; |                                         Webhook                                                                |
+;;; +----------------------------------------------------------------------------------------------------------------+
+
+(def webhook-width
+  "Width of the rendered png of html to be sent to Webhook."
+  1024)
+
+(defn send-webhook-event!
+  "Post a photo for a given Card by rendering its result into an image and sending it, with other info attached"
+  [card-results pulse dashboard]
+  (doall (for [{{card-id :id, card-name :name, :as card} :card, result :result, dashcard :dashcard} card-results]
+           (let [image-byte-array (render/render-pulse-card-to-png (defaulted-timezone card) card result webhook-width dashcard)]
+             (ds_webhook/post-event! image-byte-array dashboard dashcard pulse card)))))
+
+;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                         Creating Notifications To Send                                         |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
@@ -298,7 +314,7 @@
 
 (defmulti ^:private notification
   "Polymorphoic function for creating notifications. This logic is different for pulse type (i.e. alert vs. pulse) and
-  channel_type (i.e. email vs. slack vs. telegram)"
+  channel_type (i.e. email vs. slack vs. telegram vs. webhook)"
   {:arglists '([alert-or-pulse results channel])}
   (fn [pulse _ {:keys [channel_type]}]
     [(alert-or-pulse pulse) (keyword channel_type)]))
@@ -311,7 +327,8 @@
         query-results    (filter :card results)
         timezone         (-> query-results first :card defaulted-timezone)
         dashboard        (Dashboard :id dashboard-id)]
-    {:subject      (subject pulse)
+    {:channel-type :email
+     :subject      (subject pulse)
      :recipients   email-recipients
      :message-type :attachments
      :message      (messages/render-pulse-email timezone pulse dashboard results)}))
@@ -323,7 +340,8 @@
   (log/debug (u/format-color 'cyan (trs "Sending Pulse ({0}: {1}) with {2} Cards via Slack"
                                         pulse-id (pr-str pulse-name) (count results))))
   (let [dashboard (Dashboard :id dashboard-id)]
-    {:channel-id  channel-id
+    {:channel-type :slack
+     :channel-id  channel-id
      :attachments (remove nil?
                           (flatten [(slack-dashboard-header pulse dashboard)
                                     (create-slack-attachment-data results)
@@ -336,7 +354,16 @@
            (log/debug (u/format-color 'cyan (trs "Sending Pulse ({0}: {1}) with {2} Cards via Telegram"
                                                  pulse-id (pr-str pulse-name) (count results))))
            (let [dashboard (Dashboard :id dashboard-id)]
-             {:chat-id  chat-id :attachments results :pulse pulse :dashboard dashboard}))
+             {:channel-type :telegram :chat-id  chat-id :attachments results :pulse pulse :dashboard dashboard}))
+
+(defmethod notification [:pulse :webhook]
+           [{pulse-id :id, pulse-name :name, dashboard-id :dashboard_id, :as pulse}
+            results
+            details]
+           (log/debug (u/format-color 'cyan (trs "Sending Pulse ({0}: {1}) with {2} Cards via Webhook"
+                                                 pulse-id (pr-str pulse-name) (count results))))
+           (let [dashboard (Dashboard :id dashboard-id)]
+             {:channel-type :webhook :attachments results :pulse pulse :dashboard dashboard}))
 
 (defmethod notification [:alert :email]
   [{:keys [id] :as pulse} results channel]
@@ -348,7 +375,8 @@
         email-recipients (filterv u/email? (map :email (:recipients channel)))
         first-result     (first results)
         timezone         (-> first-result :card defaulted-timezone)]
-    {:subject      email-subject
+    {:channel-type :email
+     :subject      email-subject
      :recipients   email-recipients
      :message-type :attachments
      :message      (messages/render-alert-email timezone pulse channel results (ui/find-goal-value first-result))}))
@@ -356,7 +384,8 @@
 (defmethod notification [:alert :slack]
   [pulse results {{channel-id :channel} :details}]
   (log/debug (u/format-color 'cyan (trs "Sending Alert ({0}: {1}) via Slack" (:id pulse) (:name pulse))))
-  {:channel-id  channel-id
+  {:channel-type :slack
+   :channel-id  channel-id
    :attachments (cons {:blocks [{:type "header"
                                  :text {:type "plain_text"
                                         :text (str "🔔 " (first-question-name pulse))
@@ -366,7 +395,15 @@
 (defmethod notification [:alert :telegram]
   [pulse results {{chat-id :chat-id} :details}]
   (log/debug (u/format-color 'cyan (trs "Sending Alert ({0}: {1}) via Telegram" (:id pulse) (:name pulse))))
-  {:chat-id  chat-id
+  {:channel-type :telegram
+   :chat-id  chat-id
+   :message (str "🔔 " (first-question-name pulse))
+   :attachments results})
+
+(defmethod notification [:alert :webhook]
+  [pulse results details]
+  (log/debug (u/format-color 'cyan (trs "Sending Alert ({0}: {1}) via Webhook" (:id pulse) (:name pulse))))
+  {:channel-type :webhook
    :message (str "🔔 " (first-question-name pulse))
    :attachments results})
 
@@ -405,10 +442,14 @@
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
 (defmulti ^:private send-notification!
-  "Invokes the side-effecty function for sending emails/slacks/telegrams depending on the notification type"
+  "Invokes the side-effecty function for sending emails/slacks/telegrams/webhook events depending on the notification type"
   {:arglists '([pulse-or-alert])}
-  (fn [{:keys [channel-id chat-id], :as whatever}]
-    (if channel-id :slack (if chat-id :telegram :email))))
+  (fn [{:keys [channel-type], :as details}]
+    (case channel-type
+      :slack :slack
+      :telegram :telegram
+      :webhook :webhook
+      :email)))
 
 (defmethod send-notification! :slack
   [{:keys [channel-id message attachments]}]
@@ -418,6 +459,10 @@
 (defmethod send-notification! :telegram
   [{:keys [chat-id attachments pulse dashboard]}]
   (post-telegram-message! attachments chat-id pulse dashboard))
+
+(defmethod send-notification! :webhook
+  [{:keys [ds-webhook-url attachments pulse dashboard]}]
+  (send-webhook-event! attachments pulse dashboard))
 
 (defmethod send-notification! :email
   [{:keys [subject recipients message-type message]}]

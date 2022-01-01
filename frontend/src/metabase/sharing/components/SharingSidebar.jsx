@@ -9,6 +9,7 @@ import PulsesListSidebar from "metabase/sharing/components/PulsesListSidebar";
 import {
   AddEditSlackSidebar,
   AddEditTelegramSidebar,
+  AddEditWebhookSidebar,
   AddEditEmailSidebar,
 } from "metabase/sharing/components/AddEditSidebar";
 import Sidebar from "metabase/dashboard/components/Sidebar";
@@ -38,6 +39,7 @@ export const CHANNEL_ICONS = {
   email: "mail",
   slack: "slack",
   telegram: "telegram",
+  webhook: "webhook",
 };
 
 const cardsFromDashboard = dashboard => {
@@ -407,6 +409,47 @@ class SharingSidebar extends React.Component {
       );
     }
 
+    if (
+      editingMode === "add-edit-webhook" &&
+      (pulse.channels && pulse.channels.length > 0)
+    ) {
+      const channelDetails = pulse.channels
+        .map((c, i) => [c, i])
+        .filter(([c, i]) => c.enabled && c.channel_type === "webhook");
+
+      // protection from a failure where the channels aren't loaded yet
+      if (channelDetails.length === 0) {
+        return <Sidebar />;
+      }
+
+      const [channel, index] = channelDetails[0];
+      const channelSpec = formInput.channels.webhook;
+
+      return (
+        <AddEditWebhookSidebar
+          pulse={pulse}
+          formInput={formInput}
+          channel={channel}
+          channelSpec={channelSpec}
+          handleSave={this.handleSave}
+          onCancel={this.onCancel}
+          onChannelPropertyChange={_.partial(
+            this.onChannelPropertyChange,
+            index,
+          )}
+          onChannelScheduleChange={_.partial(
+            this.onChannelScheduleChange,
+            index,
+          )}
+          testPulse={testPulse}
+          toggleSkipIfEmpty={this.toggleSkipIfEmpty}
+          handleArchive={this.handleArchive}
+          dashboard={dashboard}
+          setPulseParameters={this.setPulseParameters}
+        />
+      );
+    }
+
     if (editingMode === "new-pulse" || pulses.length === 0) {
       const { configured: emailConfigured = false } =
         formInput.channels.email || {};
@@ -414,6 +457,8 @@ class SharingSidebar extends React.Component {
         formInput.channels.slack || {};
       const { configured: telegramConfigured = false } =
         formInput.channels.telegram || {};
+      const { configured: webhookConfigured = false } =
+        formInput.channels.webhook || {};
 
       return (
         <NewPulseSidebar
@@ -421,6 +466,7 @@ class SharingSidebar extends React.Component {
           emailConfigured={emailConfigured}
           slackConfigured={slackConfigured}
           telegramConfigured={telegramConfigured}
+          webhookConfigured={webhookConfigured}
           onNewEmailPulse={() => {
             if (emailConfigured) {
               this.setState(({ returnMode }) => {
@@ -452,6 +498,17 @@ class SharingSidebar extends React.Component {
                 };
               });
               this.setPulseWithChannel("telegram");
+            }
+          }}
+          onNewWebhookPulse={() => {
+            if (webhookConfigured) {
+              this.setState(({ returnMode }) => {
+                return {
+                  editingMode: "add-edit-webhook",
+                  returnMode: returnMode.concat([editingMode]),
+                };
+              });
+              this.setPulseWithChannel("webhook");
             }
           }}
         />

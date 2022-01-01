@@ -32,6 +32,7 @@
             [metabase.api.setup :as setup]
             [metabase.api.slack :as slack]
             [metabase.api.telegram :as telegram]
+            [metabase.api.ds_webhook :as ds_webhook]
             [metabase.api.table :as table]
             [metabase.api.task :as task]
             [metabase.api.testing :as testing]
@@ -88,6 +89,7 @@
   (context "/setup"                [] setup/routes)
   (context "/slack"                [] (+auth slack/routes))
   (context "/telegram"             [] (+auth telegram/routes))
+  (context "/ds-webhook"             [] (+auth ds_webhook/routes))
   (context "/table"                [] (+auth table/routes))
   (context "/task"                 [] (+auth task/routes))
   (context "/testing"              [] (if (or (not config/is-prod?)

@@ -26,6 +26,9 @@ const LAYOUT_PROPS = [
 
 const EMAIL_REGEX = /^(([^<>()[\]\\.,;:\s@\"]+(\.[^<>()[\]\\.,;:\s@\"]+)*)|(\".+\"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
 
+// note: localhost is not recognized; invalid ports like 999999 are recognized
+const URL_REGEX = /^(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)$/
+
 export function stripLayoutProps(props) {
   return _.omit(props, LAYOUT_PROPS);
 }
@@ -143,6 +146,10 @@ const MetabaseUtils = {
       typeof string === "string" &&
       /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(string)
     );
+  },
+
+  isUrl(url) {
+    return URL_REGEX.test(url);
   },
 
   isEmail(email) {

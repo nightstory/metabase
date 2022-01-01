@@ -15,9 +15,11 @@ function NewPulseSidebar({
   emailConfigured,
   slackConfigured,
   telegramConfigured,
+  webhookConfigured,
   onNewEmailPulse,
   onNewSlackPulse,
   onNewTelegramPulse,
+  onNewWebhookPulse,
 }) {
   return (
     <Sidebar onCancel={onCancel}>
@@ -145,6 +147,48 @@ function NewPulseSidebar({
             </Text>
           </div>
         </Card>
+        <Card
+          flat
+          className={cx({
+            "cursor-pointer text-white-hover bg-brand-hover hover-parent hover--inherit": webhookConfigured,
+          })}
+          onClick={onNewWebhookPulse}
+        >
+          <div className="px3 pt3 pb2">
+            <div className="flex align-center mb1">
+              <Icon
+                name={webhookConfigured ? "webhook_colorized" : "webhook"}
+                size={24}
+                className={cx("mr1", {
+                  "text-light": !webhookConfigured,
+                  "hover-child hover--inherit": webhookConfigured,
+                })}
+              />
+              <h3
+                className={cx({ "text-light": !webhookConfigured })}
+              >{t`Send it to Webhook`}</h3>
+            </div>
+            <Text
+              lineHeight={1.5}
+              className={cx("text-medium", {
+                "hover-child hover--inherit": webhookConfigured,
+              })}
+            >
+              {!webhookConfigured &&
+                jt`First, you'll have to ${(
+                  <Link
+                    key="link"
+                    to="/admin/settings/ds-webhook"
+                    className="link"
+                  >
+                    configure Webhook
+                  </Link>
+                )}.`}
+              {webhookConfigured &&
+                t`Pick a schedule, and Metabase will do the rest.`}
+            </Text>
+          </div>
+        </Card>
       </div>
     </Sidebar>
   );
@@ -155,9 +199,11 @@ NewPulseSidebar.propTypes = {
   emailConfigured: PropTypes.bool.isRequired,
   slackConfigured: PropTypes.bool.isRequired,
   telegramConfigured: PropTypes.bool.isRequired,
+  webhookConfigured: PropTypes.bool.isRequired,
   onNewEmailPulse: PropTypes.func.isRequired,
   onNewSlackPulse: PropTypes.func.isRequired,
   onNewTelegramPulse: PropTypes.func.isRequired,
+  onNewWebhookPulse: PropTypes.func.isRequired,
 };
 
 export default NewPulseSidebar;

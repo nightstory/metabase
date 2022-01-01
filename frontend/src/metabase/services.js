@@ -201,6 +201,10 @@ export const TelegramApi = {
   updateSettings: PUT("/api/telegram/settings"),
 };
 
+export const DsWebhookApi = {
+  updateSettings: PUT("/api/ds-webhook/settings"),
+};
+
 export const LdapApi = {
   updateSettings: PUT("/api/ldap/settings"),
 };

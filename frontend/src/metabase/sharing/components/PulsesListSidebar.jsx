@@ -123,6 +123,8 @@ function canEditPulse(pulse, formInput) {
       return formInput.channels.slack != null;
     case "telegram":
       return formInput.channels.telegram != null;
+    case "webhook":
+      return formInput.channels.webhook != null;
   }
 }
 
@@ -227,9 +229,9 @@ function friendlySchedule(channel) {
   } else if (channel.channel_type === "slack") {
     scheduleString += t`Sent to ` + channel.details.channel + " ";
   } else if (channel.channel_type === "telegram") {
-    scheduleString += t`Sent to ` + channel.details.channel + " ";
+    scheduleString += t`Sent to ` + channel.details["chat-id"] + " ";
   } else {
-    scheduleString += t`Sent `;
+    scheduleString += t`Sent to webhook `;
   }
 
   switch (channel.schedule_type) {

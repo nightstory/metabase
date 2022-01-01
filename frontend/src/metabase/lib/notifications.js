@@ -47,6 +47,8 @@ export const formatChannelType = ({ channel_type }) => {
       return t`slack’d`;
     case "telegram":
       return t`telegrammed`;
+    case "webhook":
+      return t`webhook’d`;
     default:
       return t`sent`;
   }
@@ -86,7 +88,10 @@ export const formatChannelDetails = ({ channel_type, details }) => {
     return `to ${details.channel}`;
   }
   if (channel_type === "telegram" && details) {
-    return `to ${details.channel}`;
+    return `to ${details["chat-id"]}`;
+  }
+  if (channel_type === "webhook" && details) {
+    return `to webhook`;
   }
 };
 
@@ -94,6 +99,7 @@ export const formatChannelRecipients = item => {
   const emailCount = getRecipientsCount(item, "email");
   const slackCount = getRecipientsCount(item, "slack");
   const telegramCount = getRecipientsCount(item, "telegram");
+  const webhookCount = getRecipientsCount(item, "webhook");
 
   const emailMessage = ngettext(
     msgid`${emailCount} email`,
@@ -113,6 +119,12 @@ export const formatChannelRecipients = item => {
     telegramCount,
   );
 
+  const webhookMessage = ngettext(
+    msgid`${webhookCount} Webhook subscription`,
+    `${webhookCount} Webhook subscriptions`,
+    webhookCount,
+  );
+
   const messages = [];
 
   if (emailCount) {
@@ -123,6 +135,9 @@ export const formatChannelRecipients = item => {
   }
   if (telegramCount) {
     messages.push(telegramMessage);
+  }
+  if (webhookCount) {
+    messages.push(webhookMessage);
   }
 
   return t`${messages.join(" and ")}.`;

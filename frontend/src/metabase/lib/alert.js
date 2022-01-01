@@ -13,6 +13,8 @@ export function channelIsValid(channel) {
       return channel.details && scheduleIsValid(channel);
     case "telegram":
       return channel.details && scheduleIsValid(channel);
+    case "webhook":
+      return channel.details && scheduleIsValid(channel);
     default:
       return false;
   }

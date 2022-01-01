@@ -159,7 +159,7 @@ export class CreateAlertModalContent extends Component {
           user={user}
           onClose={onCancel}
           entityNamePlural={t`alerts`}
-          channels={isAdmin ? ["email", "Slack", "Telegram"] : ["email"]}
+          channels={isAdmin ? ["email", "Slack", "Telegram", "Webhook"] : ["email"]}
           fullPageModal
         />
       );
@@ -394,7 +394,11 @@ export class DeleteAlertSection extends Component {
         )} will no longer get this alert.`}</span>
       ) : c.channel_type === "telegram" ? (
         <span>{jt`Telegram channel ${(
-          <strong>{c.details && c.details.channel}</strong>
+          <strong>{c.details && c.details["chat-id"]}</strong>
+        )} will no longer get this alert.`}</span>
+      ) : c.channel_type === "webhook" ? (
+        <span>{jt`Webhook subscription ${(
+          <strong>{c.details && c.details["ds-webhook-url"]}</strong>
         )} will no longer get this alert.`}</span>
       ) : (
         <span>{jt`Channel ${(

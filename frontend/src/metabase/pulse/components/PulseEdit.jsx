@@ -129,7 +129,16 @@ export default class PulseEdit extends Component {
       ) : c.channel_type === "telegram" ? (
         <span key={index}>
           {jt`Telegram channel ${(
-            <strong>{c.details && c.details.channel}</strong>
+            <strong>{c.details && c.details["chat-id"]}</strong>
+          )} will no longer get this pulse ${(
+            <strong>{c.schedule_type}</strong>
+          )}`}
+          .
+        </span>
+      ) : c.channel_type === "webhook" ? (
+        <span key={index}>
+          {jt`Webhook subscription ${(
+            <strong>{c.details && c.details["ds-webhook-url"]}</strong>
           )} will no longer get this pulse ${(
             <strong>{c.schedule_type}</strong>
           )}`}

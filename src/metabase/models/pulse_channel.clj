@@ -81,8 +81,7 @@
    which contains any other relevant information for defining the channel.  E.g.
 
    {:email {:name \"Email\", :recipients? true}
-    :slack {:name \"Slack\", :recipients? false}}
-    :telegram {:name \"Telegram\", :recipients? false}}"
+    :slack {:name \"Slack\", :recipients? false}}"
   {:email {:type              "email"
            :name              "Email"
            :allows_recipients true
@@ -105,7 +104,12 @@
                                 :type        "string"
                                 :displayName "Post to"
                                 :options     []
-                                :required    true}]}})
+                                :required    true}]}
+   :webhook {:type           "webhook"
+           :name              "Webhook"
+           :allows_recipients false
+           :schedules         [:hourly :daily :weekly :monthly]
+           :fields            []}})
 
 (defn channel-type?
   "Is `channel-type` a valid value as a channel type? :tv:"

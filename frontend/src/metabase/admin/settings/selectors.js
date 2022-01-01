@@ -19,7 +19,8 @@ import SettingsUpdatesForm from "./components/SettingsUpdatesForm/SettingsUpdate
 import SettingsEmailForm from "./components/SettingsEmailForm";
 import SettingsSetupList from "./components/SettingsSetupList";
 import SettingsSlackForm from "./components/SettingsSlackForm";
-import SettingsTelegramForm from "./components/SettingsTelegramForm.jsx";
+import SettingsTelegramForm from "./components/SettingsTelegramForm";
+import SettingsDashboardSubscriptionWebhookForm from "./components/SettingsDashboardSubscriptionWebhookForm";
 import { trackTrackingPermissionChanged } from "./tracking";
 
 import { UtilApi } from "metabase/services";
@@ -209,9 +210,26 @@ const SECTIONS = updateSectionsWithPlugins({
       },
     ],
   },
+  "ds-webhook": {
+    name: "DS Webhook",
+    order: 6,
+    component: SettingsDashboardSubscriptionWebhookForm,
+    settings: [
+      {
+        key: "ds-webhook-url",
+        display_name: t`Dashboard Subscription Webhook URL`,
+        description: "",
+        placeholder: t`Enter the URL where to send the notifications`,
+        type: "string",
+        required: false,
+        autoFocus: true,
+        validations: [["url", t`That's not a valid URL`]],
+      },
+    ],
+  },
   telegram: {
     name: "Telegram",
-    order: 6,
+    order: 7,
     component: SettingsTelegramForm,
     settings: [
       {
@@ -227,12 +245,12 @@ const SECTIONS = updateSectionsWithPlugins({
   },
   authentication: {
     name: t`Authentication`,
-    order: 7,
+    order: 8,
     settings: [], // added by plugins
   },
   maps: {
     name: t`Maps`,
-    order: 8,
+    order: 9,
     settings: [
       {
         key: "map-tile-server-url",
@@ -251,7 +269,7 @@ const SECTIONS = updateSectionsWithPlugins({
   },
   localization: {
     name: t`Localization`,
-    order: 9,
+    order: 10,
     settings: [
       {
         display_name: t`Instance language`,
@@ -306,7 +324,7 @@ const SECTIONS = updateSectionsWithPlugins({
   },
   public_sharing: {
     name: t`Public Sharing`,
-    order: 10,
+    order: 11,
     settings: [
       {
         key: "enable-public-sharing",
@@ -329,7 +347,7 @@ const SECTIONS = updateSectionsWithPlugins({
   },
   embedding_in_other_applications: {
     name: t`Embedding in other Applications`,
-    order: 11,
+    order: 12,
     settings: [
       {
         key: "enable-embedding",
@@ -386,7 +404,7 @@ const SECTIONS = updateSectionsWithPlugins({
   },
   caching: {
     name: t`Caching`,
-    order: 12,
+    order: 13,
     settings: [
       {
         key: "enable-query-caching",

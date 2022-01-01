@@ -13,7 +13,7 @@ export default class ChannelSetupMessage extends Component {
   };
 
   static defaultProps = {
-    channels: ["email", "Slack", "Telegram"],
+    channels: ["email", "Slack", "Telegram", "Webhook"],
   };
 
   render() {

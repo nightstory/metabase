@@ -57,6 +57,9 @@
 (defn- telegram-chat [alert]
   (m/find-first #(= :telegram (keyword (:channel_type %))) (:channels alert)))
 
+(defn- webhook-subscription [alert]
+  (m/find-first #(= :webhook (keyword (:channel_type %))) (:channels alert)))
+
 (defn- key-by [key-fn coll]
   (zipmap (map key-fn coll) coll))
 
@@ -191,7 +194,8 @@
                           (when (and (contains? alert-updates :channels)
                                      (not (seq (:recipients (email-channel alert-updates))))
                                      (not (slack-channel alert-updates))
-                                     (not (telegram-chat alert-updates)))
+                                     (not (telegram-chat alert-updates))
+                                     (not (webhook-subscription alert-updates)))
                             {:archived true})))]
 
       ;; Only admins can update recipients or explicitly archive an alert

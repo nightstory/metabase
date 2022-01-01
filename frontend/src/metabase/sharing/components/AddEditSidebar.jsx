@@ -46,6 +46,7 @@ const CHANNEL_NOUN_PLURAL = {
   email: t`Emails`,
   slack: t`Slack messages`,
   telegram: t`Telegram messages`,
+  webhook: t`Webhook events`,
 };
 
 export const AddEditEmailSidebar = connect(mapStateToProps)(
@@ -56,6 +57,9 @@ export const AddEditSlackSidebar = connect(mapStateToProps)(
 );
 export const AddEditTelegramSidebar = connect(mapStateToProps)(
   _AddEditTelegramSidebar,
+);
+export const AddEditWebhookSidebar = connect(mapStateToProps)(
+  _AddEditWebhookSidebar,
 );
 
 function _AddEditEmailSidebar({
@@ -266,7 +270,16 @@ function getConfirmItems(pulse) {
     ) : c.channel_type === "telegram" ? (
       <span key={index}>
         {jt`Telegram channel ${(
-          <strong key="msg">{c.details && c.details.channel}</strong>
+          <strong key="msg">{c.details && c.details["chat-id"]}</strong>
+        )} will no longer get this dashboard ${(
+          <strong key="type">{c.schedule_type}</strong>
+        )}`}
+        .
+      </span>
+    ) : c.channel_type === "webhook" ? (
+      <span key={index}>
+        {jt`Webhook subscription ${(
+          <strong key="msg">{c.details && c.details["ds-webhook-url"]}</strong>
         )} will no longer get this dashboard ${(
           <strong key="type">{c.schedule_type}</strong>
         )}`}
@@ -464,6 +477,7 @@ function _AddEditTelegramSidebar({
         <div className="pt2 pb1">
           <SendTestPulse
             channel={channel}
+            channelSpecs={formInput.channels}
             pulse={pulse}
             testPulse={testPulse}
             normalText={t`Send to Telegram now`}
@@ -506,6 +520,126 @@ function _AddEditTelegramSidebar({
 }
 
 _AddEditTelegramSidebar.propTypes = {
+  pulse: PropTypes.object.isRequired,
+  formInput: PropTypes.object.isRequired,
+  channel: PropTypes.object.isRequired,
+  channelSpec: PropTypes.object.isRequired,
+  users: PropTypes.array,
+  parameters: PropTypes.array.isRequired,
+  defaultParametersById: PropTypes.object.isRequired,
+  dashboard: PropTypes.object.isRequired,
+  handleSave: PropTypes.func.isRequired,
+  onCancel: PropTypes.func.isRequired,
+  onChannelPropertyChange: PropTypes.func.isRequired,
+  onChannelScheduleChange: PropTypes.func.isRequired,
+  testPulse: PropTypes.func.isRequired,
+  toggleSkipIfEmpty: PropTypes.func.isRequired,
+  handleArchive: PropTypes.func.isRequired,
+  setPulseParameters: PropTypes.func.isRequired,
+};
+
+function _AddEditWebhookSidebar({
+  pulse,
+  formInput,
+  channel,
+  channelSpec,
+  parameters,
+  defaultParametersById,
+  dashboard,
+  // form callbacks
+  handleSave,
+  onCancel,
+  onChannelPropertyChange,
+  onChannelScheduleChange,
+  testPulse,
+  toggleSkipIfEmpty,
+  handleArchive,
+  setPulseParameters,
+}) {
+  const isValid = dashboardPulseIsValid(pulse, formInput.channels);
+
+  return (
+    <Sidebar
+      closeIsDisabled={!isValid}
+      onClose={handleSave}
+      onCancel={onCancel}
+    >
+      <div className="pt4 flex align-center px4 mb3">
+        <Icon name="webhook" className="mr1" size={21} />
+        <Heading>{t`Send this dashboard to Webhook`}</Heading>
+      </div>
+      <CaveatMessage />
+      <div className="pb2 px4">
+        {channelSpec.fields && (
+          <ChannelFields
+            channel={channel}
+            channelSpec={channelSpec}
+            onChannelPropertyChange={onChannelPropertyChange}
+          />
+        )}
+        <SchedulePicker
+          schedule={_.pick(
+            channel,
+            "schedule_day",
+            "schedule_frame",
+            "schedule_hour",
+            "schedule_type",
+          )}
+          scheduleOptions={channelSpec.schedules}
+          textBeforeInterval={t`Sent`}
+          textBeforeSendTime={t`${CHANNEL_NOUN_PLURAL[
+            channelSpec && channelSpec.type
+          ] || t`Messages`} will be sent at`}
+          onScheduleChange={(newSchedule, changedProp) =>
+            onChannelScheduleChange(newSchedule, changedProp)
+          }
+        />
+        <div className="pt2 pb1">
+          <SendTestPulse
+            channel={channel}
+            channelSpecs={formInput.channels}
+            pulse={pulse}
+            testPulse={testPulse}
+            normalText={t`Send to Webhook now`}
+            successText={t`Webhook event sent`}
+            disabled={!isValid}
+          />
+        </div>
+        {PLUGIN_DASHBOARD_SUBSCRIPTION_PARAMETERS_SECTION_OVERRIDE.Component ? (
+          <PLUGIN_DASHBOARD_SUBSCRIPTION_PARAMETERS_SECTION_OVERRIDE.Component
+            className="py3 mt2 border-top"
+            parameters={parameters}
+            dashboard={dashboard}
+            pulse={pulse}
+            setPulseParameters={setPulseParameters}
+            defaultParametersById={defaultParametersById}
+          />
+        ) : (
+          <DefaultParametersSection
+            className="py3 mt2 border-top"
+            parameters={parameters}
+            defaultParametersById={defaultParametersById}
+          />
+        )}
+        <div className="text-bold py2 flex justify-between align-center border-top">
+          <Heading>{t`Don't send if there aren't results`}</Heading>
+          <Toggle
+            value={pulse.skip_if_empty || false}
+            onChange={toggleSkipIfEmpty}
+          />
+        </div>
+        {pulse.id != null && (
+          <DeleteSubscriptionAction
+            pulse={pulse}
+            handleArchive={handleArchive}
+          />
+        )}
+      </div>
+    </Sidebar>
+  );
+}
+
+_AddEditWebhookSidebar.propTypes = {
   pulse: PropTypes.object.isRequired,
   formInput: PropTypes.object.isRequired,
   channel: PropTypes.object.isRequired,
@@ -576,7 +710,7 @@ function ChannelFields({ channel, channelSpec, onChannelPropertyChange }) {
           {field.type === "string" && (
             <TextInput
               colorScheme="admin"
-              placeholder={t`chat id (number or @yourchannelname)`}
+              placeholder={t`${channel.channel_type === 'telegram' ? 'chat id (number or @yourchannelname)' : 'value'}`}
               padding="sm"
               borderRadius="md"
               value={valueForField(field)}

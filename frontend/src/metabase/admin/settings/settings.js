@@ -10,6 +10,7 @@ import {
   EmailApi,
   SlackApi,
   TelegramApi,
+  DsWebhookApi,
   LdapApi,
 } from "metabase/services";
 
@@ -150,6 +151,25 @@ export const updateTelegramSettings = createThunkAction(
         return result;
       } catch (error) {
         console.log("error updating telegram settings", settings, error);
+        throw error;
+      }
+    };
+  },
+  {},
+);
+
+export const UPDATE_DS_WEBHOOK_SETTINGS =
+  "metabase/admin/settings/UPDATE_DS_WEBHOOK_SETTINGS";
+export const updateDashboardSubscriptionWebhookSettings = createThunkAction(
+  UPDATE_DS_WEBHOOK_SETTINGS,
+  function(settings) {
+    return async function(dispatch, getState) {
+      try {
+        const result = await DsWebhookApi.updateSettings(settings);
+        await dispatch(reloadSettings());
+        return result;
+      } catch (error) {
+        console.log("error updating dashboard subscription webhook settings", settings, error);
         throw error;
       }
     };

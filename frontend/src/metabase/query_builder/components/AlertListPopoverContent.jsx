@@ -158,10 +158,10 @@ export class AlertListItem extends Component {
     const emailEnabled = emailChannel && emailChannel.enabled;
     const slackChannel = alert.channels.find(c => c.channel_type === "slack");
     const slackEnabled = slackChannel && slackChannel.enabled;
-    const telegramChannel = alert.channels.find(
-      c => c.channel_type === "telegram",
-    );
+    const telegramChannel = alert.channels.find(c => c.channel_type === "telegram");
     const telegramEnabled = telegramChannel && telegramChannel.enabled;
+    const webhookChannel = alert.channels.find(c => c.channel_type === "webhook");
+    const webhookEnabled = webhookChannel && webhookChannel.enabled;
 
     if (hasJustUnsubscribed) {
       return <UnsubscribedListItem />;
@@ -228,8 +228,14 @@ export class AlertListItem extends Component {
             {isAdmin && telegramEnabled && (
               <li className="ml3 flex align-center">
                 <Icon name="telegram" size={16} className="mr1" />
-                {(telegramChannel.details && telegramChannel.details.channel) ||
+                {(telegramChannel.details && telegramChannel.details["chat-id"]) ||
                   t`No channel`}
+              </li>
+            )}
+            {isAdmin && webhookEnabled && (
+              <li className="ml3 flex align-center">
+                <Icon name="webhook" size={16} className="mr1" />
+                {webhookChannel.details && webhookChannel.details["ds-webhook-url"] || t`No channel`}
               </li>
             )}
           </ul>
