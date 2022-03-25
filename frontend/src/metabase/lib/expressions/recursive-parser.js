@@ -1,7 +1,7 @@
 import { t } from "ttag";
 
 import { tokenize, TOKEN, OPERATOR as OP } from "./tokenizer";
-import { getMBQLName, MBQL_CLAUSES } from "./index";
+import { getMBQLName, MBQL_CLAUSES, unescapeString } from "./index";
 
 const COMPARISON_OPS = [
   OP.Equal,
@@ -70,7 +70,7 @@ function recursiveParse(source) {
 
   const field = name => {
     const ref = name[0] === "[" ? shrink(name) : name;
-    return ["dimension", ref];
+    return ["dimension", unescapeString(ref)];
   };
 
   // Primary ::= Literal |
@@ -210,12 +210,25 @@ function recursiveParse(source) {
 const modify = (node, transform) => {
   if (Array.isArray(node)) {
     const [operator, ...operands] = node;
-    return transform([
-      operator,
-      ...operands.map(sub => modify(sub, transform)),
-    ]);
+    return withAST(
+      transform([operator, ...operands.map(sub => modify(sub, transform))]),
+      node,
+    );
   }
-  return transform(node);
+  return withAST(transform(node), node);
+};
+
+const withAST = (result, expr) => {
+  // If this expression comes from the compiler, an object property
+  // containing the parent AST node will be included for errors
+  if (expr.node && typeof result.node === "undefined") {
+    Object.defineProperty(result, "node", {
+      writable: false,
+      enumerable: false,
+      value: expr.node,
+    });
+  }
+  return result;
 };
 
 const NEGATIVE_FILTER_SHORTHANDS = {
@@ -233,7 +246,7 @@ export const useShorthands = tree =>
         const [fn, ...params] = operand;
         const shorthand = NEGATIVE_FILTER_SHORTHANDS[fn];
         if (shorthand) {
-          return [shorthand, ...params];
+          return withAST([shorthand, ...params], node);
         }
       }
     }
@@ -259,7 +272,7 @@ export const adjustOptions = tree =>
               operands.pop();
               operands.push({ "include-current": true });
             }
-            return [operator, ...operands];
+            return withAST([operator, ...operands], node);
           }
         }
       }
@@ -282,9 +295,27 @@ export const adjustCase = tree =>
         }
         if (operands.length > 2 * pairCount) {
           const defVal = operands[operands.length - 1];
-          return [operator, pairs, { default: defVal }];
+          return withAST([operator, pairs, { default: defVal }], node);
         }
-        return [operator, pairs];
+        return withAST([operator, pairs], node);
+      }
+    }
+    return node;
+  });
+
+// [ "dimension", "count "] becomes ["count"], since Count is a valid no-arg function
+export const transformNoArgFunction = tree =>
+  modify(tree, node => {
+    if (Array.isArray(node)) {
+      const [operator, ...operands] = node;
+      if (operands.length === 1 && operator === "dimension") {
+        const text = operands[0];
+        const fn = getMBQLName(text.trim().toLowerCase());
+
+        // refering a function with no args?
+        if (fn && MBQL_CLAUSES[fn].args.length === 0) {
+          return [fn];
+        }
       }
     }
     return node;
@@ -296,5 +327,6 @@ export const parse = pipe(
   recursiveParse,
   adjustOptions,
   useShorthands,
+  transformNoArgFunction,
   adjustCase,
 );

@@ -4,8 +4,11 @@ import {
   openTable,
   visitQuestionAdhoc,
   getBinningButtonForDimension,
+  summarize,
 } from "__support__/e2e/cypress";
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+
+import { SAMPLE_DB_ID } from "__support__/e2e/cypress_data";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
 const {
   ORDERS_ID,
@@ -14,7 +17,7 @@ const {
   PEOPLE,
   PRODUCTS_ID,
   PRODUCTS,
-} = SAMPLE_DATASET;
+} = SAMPLE_DATABASE;
 
 const ordersJoinPeopleQuery = {
   type: "query",
@@ -34,7 +37,7 @@ const ordersJoinPeopleQuery = {
     ],
     fields: [["field", ORDERS.ID, null]],
   },
-  database: 1,
+  database: SAMPLE_DB_ID,
 };
 
 const ordersJoinProductsQuery = {
@@ -55,7 +58,7 @@ const ordersJoinProductsQuery = {
     ],
     fields: [["field", ORDERS.ID, null]],
   },
-  database: 1,
+  database: SAMPLE_DB_ID,
 };
 
 const NUMBER_BUCKETS = [
@@ -97,10 +100,14 @@ const LONGITUDE_BUCKETS = [
  * Makes sure that all binning options (bucket sizes) are rendered correctly for the regular table.
  *  1. no option should be rendered multiple times
  *  2. the selected option should be highlighted when the popover with all options opens
+ *
+ * This spec covers the following issues:
+ *  - metabase#15574
  */
 
 describe("scenarios > binning > binning options", () => {
   beforeEach(() => {
+    cy.intercept("POST", "/api/dataset").as("dataset");
     restore();
     cy.signInAsAdmin();
   });
@@ -178,16 +185,17 @@ describe("scenarios > binning > binning options", () => {
     });
   });
 
-  context("via time series footer", () => {
+  context("via time series footer (metabase#11183)", () => {
     it("should render time series binning options correctly", () => {
       openTable({ table: ORDERS_ID });
+
       cy.findByText("Created At").click();
       cy.findByText("Distribution").click();
 
       getTitle("Count by Created At: Month");
 
       // Check all binning options from the footer
-      cy.get(".AdminSelect-content")
+      cy.findAllByTestId("select-button-content")
         .contains("Month")
         .click();
       getAllOptions({ options: TIME_BUCKETS, isSelected: "Month" });
@@ -265,7 +273,7 @@ describe("scenarios > binning > binning options", () => {
 
 function chooseInitialBinningOption({ table, column, mode = null } = {}) {
   openTable({ table, mode });
-  cy.findByText("Summarize").click();
+  summarize({ mode });
 
   if (mode === "notebook") {
     cy.findByText("Count of rows").click();
@@ -285,8 +293,7 @@ function chooseInitialBinningOptionForExplicitJoin({
 } = {}) {
   visitQuestionAdhoc({ dataset_query: baseTableQuery });
 
-  cy.wait("@dataset");
-  cy.findByTextEnsureVisible("Summarize").click();
+  summarize();
 
   cy.findByTestId("sidebar-right").within(() => {
     cy.findByText("Count"); // Test fails without this because of some weird race condition

@@ -2,10 +2,12 @@
 // @ts-nocheck
 // NOTE: this needs to be imported first due to some cyclical dependency nonsense
 import Question from "../Question";
+import Schema from "./Schema";
 import Base from "./Base";
 import { singularize } from "metabase/lib/formatting";
 import { getAggregationOperatorsWithFields } from "metabase/lib/schema_metadata";
 import { memoize, createLookupByProperty } from "metabase-lib/lib/utils";
+
 /**
  * @typedef { import("./metadata").SchemaName } SchemaName
  * @typedef { import("./metadata").EntityType } EntityType
@@ -18,6 +20,10 @@ export default class Table extends Base {
   id: number;
   description?: string;
   fks?: any[];
+  schema?: Schema;
+  display_name: string;
+  schema_name: string;
+  db_id: number;
 
   hasSchema() {
     return (this.schema_name && this.db && this.db.schemas.length > 1) || false;

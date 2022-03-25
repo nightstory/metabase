@@ -1,7 +1,12 @@
-import { restore, filterWidget, popover } from "__support__/e2e/cypress";
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import {
+  restore,
+  filterWidget,
+  popover,
+  visitDashboard,
+} from "__support__/e2e/cypress";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { PRODUCTS, PRODUCTS_ID } = SAMPLE_DATASET;
+const { PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
 describe("issue 15119", () => {
   beforeEach(() => {
@@ -49,7 +54,7 @@ describe("issue 15119", () => {
         });
 
         cy.signIn("nodata");
-        cy.visit(`/dashboard/${dashboard_id}`);
+        visitDashboard(dashboard_id);
       },
     );
 

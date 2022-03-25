@@ -19,13 +19,14 @@ import {
   getWaterfallEntryColor,
 } from "metabase/static-viz/lib/waterfall";
 import { sortTimeSeries } from "../../lib/sort";
+import { DATE_ACCESSORS } from "../../constants/accessors";
 
 const propTypes = {
   data: PropTypes.array.isRequired,
   accessors: PropTypes.shape({
     x: PropTypes.func.isRequired,
     y: PropTypes.func.isRequired,
-  }).isRequired,
+  }),
   settings: PropTypes.shape({
     x: PropTypes.object,
     y: PropTypes.object,
@@ -59,14 +60,19 @@ const layout = {
     waterfallPositive: "#88BF4D",
     waterfallNegative: "#EF8C8C",
   },
-  numTicks: 5,
+  numTicks: 4,
   barPadding: 0.2,
   labelFontWeight: 700,
   labelPadding: 12,
   strokeDasharray: "4",
 };
 
-const TimeSeriesWaterfallChart = ({ data, accessors, settings, labels }) => {
+const TimeSeriesWaterfallChart = ({
+  data,
+  accessors = DATE_ACCESSORS,
+  settings,
+  labels,
+}) => {
   data = sortTimeSeries(data);
   const colors = settings?.colors;
   const yTickWidth = getYTickWidth(data, accessors, settings, layout.font.size);

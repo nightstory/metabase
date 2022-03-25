@@ -5,7 +5,7 @@ import { t, jt } from "ttag";
 import * as Urls from "metabase/lib/urls";
 
 import Icon from "metabase/components/Icon";
-import Link from "metabase/components/Link";
+import Link from "metabase/core/components/Link";
 
 import Schema from "metabase/entities/schemas";
 import Database from "metabase/entities/databases";
@@ -30,9 +30,12 @@ const infoTextPropTypes = {
 export function InfoText({ result }) {
   switch (result.model) {
     case "card":
-      return jt`Saved question in ${formatCollection(result.getCollection())}`;
+      return jt`Saved question in ${formatCollection(
+        result,
+        result.getCollection(),
+      )}`;
     case "dataset":
-      return jt`Dataset in ${formatCollection(result.getCollection())}`;
+      return jt`Model in ${formatCollection(result, result.getCollection())}`;
     case "collection":
       return getCollectionInfoText(result.collection);
     case "database":
@@ -45,6 +48,7 @@ export function InfoText({ result }) {
       return jt`Metric for ${(<TableLink result={result} />)}`;
     default:
       return jt`${getTranslatedEntityName(result.model)} in ${formatCollection(
+        result,
         result.getCollection(),
       )}`;
   }
@@ -52,8 +56,12 @@ export function InfoText({ result }) {
 
 InfoText.propTypes = infoTextPropTypes;
 
-function formatCollection(collection) {
-  return collection.id && <CollectionBadge collection={collection} />;
+function formatCollection(result, collection) {
+  return (
+    collection.id && (
+      <CollectionBadge key={result.model} collection={collection} />
+    )
+  );
 }
 
 function getCollectionInfoText(collection) {

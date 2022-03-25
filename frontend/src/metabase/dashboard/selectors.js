@@ -7,6 +7,8 @@ import { getMetadata } from "metabase/selectors/metadata";
 import {
   getMappingsByParameter as _getMappingsByParameter,
   getDashboardParametersWithFieldMetadata,
+  getFilteringParameterValuesMap,
+  getParameterValuesSearchKey,
 } from "metabase/parameters/utils/dashboards";
 import { getParameterMappingOptions as _getParameterMappingOptions } from "metabase/parameters/utils/mapping-options";
 
@@ -57,6 +59,12 @@ export const getDashboardComplete = createSelector(
         .filter(dc => !dc.isRemoved),
     },
 );
+
+export const getIsBookmarked = (state, props) =>
+  props.bookmarks.some(
+    bookmark =>
+      bookmark.type === "dashboard" && bookmark.item_id === props.dashboardId,
+  );
 
 export const getIsDirty = createSelector(
   [getDashboard, getDashcards],
@@ -143,3 +151,31 @@ export const getDefaultParametersById = createSelector(
       return map;
     }, {}),
 );
+
+export const getDashboardParameterValuesSearchCache = state =>
+  state.dashboard.parameterValuesSearchCache;
+
+export const getDashboardParameterValuesCache = state => {
+  return {
+    get: ({ dashboardId, parameter, parameters, query }) => {
+      if (!parameter) {
+        return undefined;
+      }
+
+      const { parameterValuesSearchCache } = state.dashboard;
+
+      const filteringParameterValues = getFilteringParameterValuesMap(
+        parameter,
+        parameters,
+      );
+
+      const cacheKey = getParameterValuesSearchKey({
+        dashboardId,
+        parameterId: parameter.id,
+        query,
+        filteringParameterValues,
+      });
+      return parameterValuesSearchCache[cacheKey];
+    },
+  };
+};

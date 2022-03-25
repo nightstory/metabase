@@ -1,5 +1,5 @@
 import React from "react";
-import styled from "styled-components";
+import styled from "@emotion/styled";
 import PropTypes from "prop-types";
 import { t } from "ttag";
 
@@ -52,7 +52,12 @@ export function SearchResults({
             <ul>
               {list.map(item => (
                 <li key={`${item.id}_${item.model}`}>
-                  <SearchResult result={item} onClick={onSelect} compact />
+                  <SearchResult
+                    result={item}
+                    onClick={onSelect}
+                    compact
+                    hasDescription={false}
+                  />
                 </li>
               ))}
             </ul>

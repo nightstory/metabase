@@ -1,14 +1,15 @@
 /* eslint-disable react/prop-types */
 import React from "react";
 import { render } from "@testing-library/react";
+import { merge } from "icepick";
 import { createMemoryHistory } from "history";
 import { Router, Route } from "react-router";
 import { Provider } from "react-redux";
 import { reducer as form } from "redux-form";
-import { ThemeProvider } from "styled-components";
+import { ThemeProvider } from "@emotion/react";
 import { DragDropContextProvider } from "react-dnd";
 import HTML5Backend from "react-dnd-html5-backend";
-import { state as sampleDatasetReduxState } from "__support__/sample_dataset_fixture";
+import { state as sampleDatabaseReduxState } from "__support__/sample_database_fixture";
 import { getStore } from "./entities-store";
 
 function getUser(user = {}) {
@@ -35,13 +36,16 @@ export function renderWithProviders(
   {
     currentUser,
     reducers,
-    withSampleDataset,
+    storeInitialState = {},
+    withSampleDatabase,
     withRouter = false,
     withDND = false,
     ...options
   } = {},
 ) {
-  const initialReduxState = withSampleDataset ? sampleDatasetReduxState : {};
+  const initialReduxState = withSampleDatabase
+    ? merge(sampleDatabaseReduxState, storeInitialState)
+    : storeInitialState;
 
   const store = getStore(
     {

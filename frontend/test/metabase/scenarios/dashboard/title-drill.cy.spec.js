@@ -1,7 +1,12 @@
-import { restore, filterWidget, popover } from "__support__/e2e/cypress";
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import {
+  restore,
+  filterWidget,
+  popover,
+  visitDashboard,
+} from "__support__/e2e/cypress";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { PRODUCTS, PRODUCTS_ID } = SAMPLE_DATASET;
+const { PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
 describe("scenarios > dashboard > title drill", () => {
   describe("on a native question without connected dashboard parameters", () => {
@@ -21,7 +26,7 @@ describe("scenarios > dashboard > title drill", () => {
 
       cy.createNativeQuestionAndDashboard({ questionDetails }).then(
         ({ body: { dashboard_id } }) => {
-          cy.visit(`/dashboard/${dashboard_id}`);
+          visitDashboard(dashboard_id);
         },
       );
     });
@@ -121,7 +126,7 @@ describe("scenarios > dashboard > title drill", () => {
             ],
           });
 
-          cy.visit(`/dashboard/${dashboard_id}`);
+          visitDashboard(dashboard_id);
           checkScalarResult("200");
         },
       );
@@ -227,10 +232,10 @@ describe("scenarios > dashboard > title drill", () => {
 
           cy.intercept(
             "POST",
-            `/api/dashboard/${dashboard_id}/card/${card_id}/query`,
+            `/api/dashboard/${dashboard_id}/dashcard/*/card/${card_id}/query`,
           ).as("cardQuery");
 
-          cy.visit(`/dashboard/${dashboard_id}`);
+          visitDashboard(dashboard_id);
         },
       );
     });

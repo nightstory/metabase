@@ -2,10 +2,11 @@ import {
   restore,
   expectedRouteCalls,
   filterWidget,
+  visitDashboard,
 } from "__support__/e2e/cypress";
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { ORDERS, PRODUCTS } = SAMPLE_DATASET;
+const { ORDERS, PRODUCTS } = SAMPLE_DATABASE;
 
 const filter = {
   id: "d7988e02",
@@ -56,7 +57,7 @@ describe.skip("issue 16103", () => {
       ],
     });
 
-    cy.visit("/dashboard/1");
+    visitDashboard(1);
 
     filterWidget().click();
     expectedRouteCalls({ route_alias: "fetchFromDB", calls: 1 });

@@ -6,9 +6,11 @@ Whenever you’ve arrived at an answer that you want to save for later, click th
 
 ![Save button](images/sharing-answers/save-button.png)
 
-A pop-up box will appear, prompting you to give your question a name and description, and to pick which [collection](#collection) to save it in. Note that your administrator might have set things up so that you're only allowed to [save questions in certain collection][collection-permissions], but you can always save things in your Personal Collection. After saving your question, you'll be asked if you want to add it to a new or existing dashboard.
+A pop-up box will appear, prompting you to give your question a name and description, and to pick which [collection][collections] to save it in. Note that your administrator might have set things up so that you're only allowed to [save questions in certain collection][collection-permissions], but you can always save things in your Personal Collection. After saving your question, you'll be asked if you want to add it to a new or existing dashboard.
 
 Now, whenever you want to refer to your question again you can find it by searching for it in the search bar at the top of Metabase, or by navigating to the collection where you saved it.
+
+You can also convert a question to a [model][model].
 
 ## Downloading Your Results
 
@@ -50,9 +52,9 @@ Verified questions are also more likely to show up higher in search suggestions 
 
 If someone modifies a verified question, the question will lose its verified status, and an administrator will need to review and verify the question again to restore its verified status.
 
-### Question history
+### Question and model histories
 
-You can see the history of a question, including edits and verifications, in the **History** section of the **Question detail sidebar**.
+You can see the history of a question or [model][model], including edits and verifications, in the **History** section of the **Question detail sidebar**.
 
 Below each edit entry in the timeline, you can click on **Revert** to reinstate the question at the time of the edit.
 
@@ -78,5 +80,6 @@ Next, we'll learn about how to organize our questions in [collections][collectio
 [archiving-items]: collections.html#archiving-items
 [caching]: ../administration-guide/14-caching.md
 [collections]: collections.html
-[collection-permissions]: collections.md#collection-permissions
+[collection-permissions]: ../administration-guide/06-collections.md
 [dashboards]: 07-dashboards.md
+[model]: models.md

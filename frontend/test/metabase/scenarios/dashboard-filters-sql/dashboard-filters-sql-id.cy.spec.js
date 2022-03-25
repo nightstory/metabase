@@ -5,13 +5,15 @@ import {
   editDashboard,
   saveDashboard,
   setFilter,
+  visitQuestion,
+  visitDashboard,
 } from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
 import { addWidgetStringFilter } from "../native-filters/helpers/e2e-field-filter-helpers";
 
-const { ORDERS } = SAMPLE_DATASET;
+const { ORDERS } = SAMPLE_DATABASE;
 
 describe("scenarios > dashboard > filters > SQL > ID", () => {
   beforeEach(() => {
@@ -100,14 +102,10 @@ function prepareDashboardWithFilterConnectedTo(rowId) {
   };
 
   cy.createNativeQuestionAndDashboard({ questionDetails }).then(
-    ({ body: { id, card_id, dashboard_id } }) => {
-      cy.intercept("POST", `/api/card/${card_id}/query`).as("cardQuery");
-      cy.visit(`/question/${card_id}`);
+    ({ body: { card_id, dashboard_id } }) => {
+      visitQuestion(card_id);
 
-      // Wait for `result_metadata` to load
-      cy.wait("@cardQuery");
-
-      cy.visit(`/dashboard/${dashboard_id}`);
+      visitDashboard(dashboard_id);
     },
   );
 

@@ -13,10 +13,10 @@
             [metabase.driver.common.parameters :as i]
             [metabase.mbql.schema :as mbql.s]
             [metabase.models.card :refer [Card]]
-            [metabase.models.field :refer [Field]]
             [metabase.models.native-query-snippet :refer [NativeQuerySnippet]]
             [metabase.query-processor :as qp]
             [metabase.query-processor.error-type :as qp.error-type]
+            [metabase.query-processor.store :as qp.store]
             [metabase.util :as u]
             [metabase.util.i18n :refer [deferred-tru tru]]
             [metabase.util.schema :as su]
@@ -111,10 +111,9 @@
   [{field-filter :dimension, :as tag} :- mbql.s/TemplateTag
    params                             :- (s/maybe [mbql.s/Parameter])]
   (i/map->FieldFilter
-   ;; TODO - shouldn't this use the QP Store?
    {:field (let [field-id (field-filter->field-id field-filter)]
-             (or (db/select-one [Field :name :parent_id :table_id :base_type :effective_type :coercion_strategy :semantic_type]
-                   :id field-id)
+             (qp.store/fetch-and-store-fields! #{field-id})
+             (or (qp.store/field field-id)
                  (throw (ex-info (str (deferred-tru "Can''t find field with ID: {0}" field-id))
                                  {:field-id field-id, :type qp.error-type/invalid-parameter}))))
     :value (field-filter-value tag params)}))
@@ -130,7 +129,7 @@
     (try
       (i/map->ReferencedCardQuery
        (merge {:card-id card-id}
-              (qp/query->native (assoc query :parameters params, :info {:card-id card-id}))))
+              (qp/compile (assoc query :parameters params, :info {:card-id card-id}))))
       (catch ExceptionInfo e
         (throw (ex-info
                 (tru "The sub-query from referenced question #{0} failed with the following error: {1}"
@@ -209,27 +208,28 @@
   converted to SQL as a simple comma-separated list.)"
   [value]
   (cond
-   ;; if not a string it's already been parsed
-   (number? value) value
-   ;; same goes for an instance of CommaSeperated values
-   (instance? CommaSeparatedNumbers value) value
-
-   ;; newer operators use vectors as their arguments even if there's only one
-   (vector? value)
-   (let [values (map parse-number value)]
-     (if (next values)
-       (i/map->CommaSeparatedNumbers {:numbers values})
-       (first values)))
-   ;; if the value is a string, then split it by commas in the string. Usually there should be none.
-   ;; Parse each part as a number.
-   (string? value)
-   (let [parts (for [part (str/split value #",")]
-                 (parse-number part))]
-     (if (> (count parts) 1)
-       ;; If there's more than one number return an instance of `CommaSeparatedNumbers`
-       (i/map->CommaSeparatedNumbers {:numbers parts})
-       ;; otherwise just return the single number
-       (first parts)))))
+    ;; if not a string it's already been parsed
+    (number? value)
+    value
+    ;; same goes for an instance of CommaSeperated values
+    (instance? CommaSeparatedNumbers value)
+    value
+    ;; newer operators use vectors as their arguments even if there's only one
+    (vector? value)
+    (let [values (mapv value->number value)]
+      (if (next values)
+        (i/map->CommaSeparatedNumbers {:numbers values})
+        (first values)))
+    ;; if the value is a string, then split it by commas in the string. Usually there should be none.
+    ;; Parse each part as a number.
+    (string? value)
+    (let [parts (for [part (str/split value #",")]
+                  (parse-number part))]
+      (if (> (count parts) 1)
+        ;; If there's more than one number return an instance of `CommaSeparatedNumbers`
+        (i/map->CommaSeparatedNumbers {:numbers parts})
+        ;; otherwise just return the single number
+        (first parts)))))
 
 (s/defn ^:private parse-value-for-field-type :- s/Any
   "Do special parsing for value for a (presumably textual) FieldFilter (`:type` = `:dimension`) param (i.e., attempt
@@ -306,7 +306,9 @@
   (try
     (parse-value-for-type (:type tag) (parse-tag tag params))
     (catch Throwable e
-      (throw (ex-info (tru "Error determining value for parameter: {0}" (ex-message e))
+      (throw (ex-info (tru "Error determining value for parameter {0}: {1}"
+                           (pr-str (:name tag))
+                           (ex-message e))
                       {:tag  tag
                        :type (or (:type (ex-data e)) qp.error-type/invalid-parameter)}
                       e)))))

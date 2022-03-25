@@ -1,8 +1,8 @@
-import styled from "styled-components";
+import styled from "@emotion/styled";
 
 import { color } from "metabase/lib/colors";
 import { space } from "metabase/styled-components/theme";
-import Button from "metabase/components/Button";
+import Button from "metabase/core/components/Button";
 import SpecificDatePicker from "metabase/query_builder/components/filters/pickers/SpecificDatePicker";
 
 export const Container = styled.div`
@@ -21,9 +21,11 @@ export const Footer = styled.div`
   align-items: center;
 `;
 
-export const UpdateButton = styled(Button).attrs({
-  purple: true,
-})`
+export const UpdateButton = styled(Button)`
   justify-self: end;
   grid-column-start: 2;
 `;
+
+UpdateButton.defaultProps = {
+  purple: true,
+};

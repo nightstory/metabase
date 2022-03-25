@@ -1,8 +1,14 @@
-import { restore, openOrdersTable, popover } from "__support__/e2e/cypress";
+import {
+  restore,
+  openOrdersTable,
+  popover,
+  summarize,
+  visitDashboard,
+} from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { ORDERS, ORDERS_ID } = SAMPLE_DATASET;
+const { ORDERS, ORDERS_ID } = SAMPLE_DATABASE;
 
 describe("scenarios > question > null", () => {
   beforeEach(() => {
@@ -148,11 +154,11 @@ describe("scenarios > question > null", () => {
             });
           });
 
-          cy.visit(`/dashboard/${DASHBOARD_ID}`);
+          visitDashboard(DASHBOARD_ID);
           cy.log("P0 regression in v0.37.1!");
           cy.findByTestId("loading-spinner").should("not.exist");
           cy.findByText("13801_Q1");
-          cy.get(".ScalarValue").contains("0");
+          cy.get(".ScalarValue").should("contain", "0");
           cy.findByText("13801_Q2");
         });
       });
@@ -181,18 +187,13 @@ describe("scenarios > question > null", () => {
   });
 
   describe("aggregations with null values", () => {
-    beforeEach(() => {
-      cy.server();
-      cy.route("POST", "/api/dataset").as("dataset");
-    });
-
     it("summarize with null values (metabase#12585)", () => {
       openOrdersTable();
-      cy.wait("@dataset");
-      cy.contains("Summarize").click();
+
+      summarize();
       // remove pre-selected "Count"
       cy.icon("close").click();
-      // dropdown immediately opens with the new set of metrics to choose from
+      cy.findByText("Add a metric").click();
       popover().within(() => {
         cy.findByText("Cumulative sum of ...").click();
         cy.findByText("Discount").click();
@@ -200,10 +201,6 @@ describe("scenarios > question > null", () => {
       // Group by
       cy.contains("Created At").click();
       cy.contains("Cumulative sum of Discount by Created At: Month");
-      cy.wait(["@dataset", "@dataset"]).then(xhrs => {
-        expect(xhrs[0].status).to.equal(202);
-        expect(xhrs[1].status).to.equal(202);
-      });
 
       cy.findByText("There was a problem with your question").should(
         "not.exist",

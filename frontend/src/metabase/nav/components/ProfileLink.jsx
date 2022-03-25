@@ -1,11 +1,11 @@
 import React, { Component } from "react";
 import PropTypes from "prop-types";
-import { Box } from "grid-styled";
-
 import { t } from "ttag";
 import _ from "underscore";
+
 import { capitalize } from "metabase/lib/formatting";
 import { color, darken } from "metabase/lib/colors";
+import { PLUGIN_FEATURE_LEVEL_PERMISSIONS } from "metabase/plugins";
 
 import MetabaseSettings from "metabase/lib/settings";
 import * as Urls from "metabase/lib/urls";
@@ -36,7 +36,10 @@ export default class ProfileLink extends Component {
 
   generateOptionsForUser = () => {
     const { tag } = MetabaseSettings.get("version");
-    const admin = this.props.user.is_superuser;
+    const { user } = this.props;
+    const canAccessSettings =
+      user.is_superuser ||
+      PLUGIN_FEATURE_LEVEL_PERMISSIONS.canAccessSettings(user);
 
     return [
       {
@@ -45,7 +48,7 @@ export default class ProfileLink extends Component {
         link: Urls.accountSettings(),
         event: `Navbar;Profile Dropdown;Edit Profile`,
       },
-      admin && {
+      canAccessSettings && {
         title: t`Admin settings`,
         icon: null,
         link: "/admin",
@@ -85,7 +88,7 @@ export default class ProfileLink extends Component {
     // don't show trademark if application name is whitelabeled
     const showTrademark = t`Metabase` === "Metabase";
     return (
-      <Box>
+      <div>
         <EntityMenu
           tooltip={t`Settings`}
           items={this.generateOptionsForUser()}
@@ -139,7 +142,7 @@ export default class ProfileLink extends Component {
             )}
           </Modal>
         ) : null}
-      </Box>
+      </div>
     );
   }
 }

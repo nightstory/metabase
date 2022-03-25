@@ -1,5 +1,5 @@
 import {
-  describeWithToken,
+  describeEE,
   modal,
   openOrdersTable,
   openPeopleTable,
@@ -9,10 +9,14 @@ import {
   remapDisplayValueToFK,
   setupSMTP,
   visualize,
+  summarize,
+  filter,
+  visitQuestion,
+  visitDashboard,
 } from "__support__/e2e/cypress";
-import { USER_GROUPS } from "__support__/e2e/cypress_data";
+import { USER_GROUPS, SAMPLE_DB_ID } from "__support__/e2e/cypress_data";
 
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
 const {
   ORDERS,
@@ -23,11 +27,11 @@ const {
   REVIEWS_ID,
   PEOPLE,
   PEOPLE_ID,
-} = SAMPLE_DATASET;
+} = SAMPLE_DATABASE;
 
 const { DATA_GROUP } = USER_GROUPS;
 
-describeWithToken("formatting > sandboxes", () => {
+describeEE("formatting > sandboxes", () => {
   describe("admin", () => {
     beforeEach(() => {
       restore();
@@ -128,8 +132,9 @@ describeWithToken("formatting > sandboxes", () => {
     describe("question with joins", () => {
       it("should be sandboxed even after applying a filter to the question", () => {
         cy.log("Open saved question with joins");
-        cy.visit("/collection/root");
-        cy.findByText(QUESTION_NAME).click();
+        cy.get("@questionId").then(id => {
+          visitQuestion(id);
+        });
 
         cy.log("Make sure user is initially sandboxed");
         cy.get(".TableInteractive-cellWrapper--firstColumn").should(
@@ -139,9 +144,9 @@ describeWithToken("formatting > sandboxes", () => {
 
         cy.log("Add filter to a question");
         cy.icon("notebook").click();
-        cy.findByText("Filter").click();
+        filter({ mode: "notebook" });
         popover().within(() => {
-          cy.findByText("Total").click();
+          cy.findByText("Total").click({ force: true });
         });
         cy.findByText("Equal to").click();
         cy.findByText("Greater than").click();
@@ -198,7 +203,7 @@ describeWithToken("formatting > sandboxes", () => {
       cy.signInAsSandboxedUser();
 
       openOrdersTable({ mode: "notebook" });
-      cy.findByText("Summarize").click();
+      summarize({ mode: "notebook" });
       cy.findByText("Count of rows").click();
       cy.findByText("Pick a column to group by").click();
 
@@ -261,18 +266,11 @@ describeWithToken("formatting > sandboxes", () => {
         cy.signOut();
         cy.signInAsSandboxedUser();
 
-        cy.server();
-        cy.route("POST", `/api/card/${QUESTION_ID}/query`).as("cardQuery");
-
         // Assertion phase starts here
-        cy.visit(`/question/${QUESTION_ID}`);
+        visitQuestion(QUESTION_ID);
         cy.findByText(QUESTION_NAME);
 
         cy.log("Reported failing since v1.36.4");
-        cy.wait("@cardQuery").then(xhr => {
-          expect(xhr.response.body.error).not.to.exist;
-        });
-
         cy.contains(CC_NAME);
       });
     });
@@ -482,10 +480,8 @@ describeWithToken("formatting > sandboxes", () => {
         cy.signOut();
         cy.signInAsSandboxedUser();
 
-        openOrdersTable();
-
-        cy.wait("@dataset").then(xhr => {
-          expect(xhr.response.body.error).not.to.exist;
+        openOrdersTable({
+          callback: xhr => expect(xhr.response.body.error).not.to.exist,
         });
 
         cy.get(".cellData")
@@ -640,11 +636,10 @@ describeWithToken("formatting > sandboxes", () => {
 
         cy.signOut();
         cy.signInAsSandboxedUser();
-        openOrdersTable();
-
-        cy.wait("@dataset").then(xhr => {
-          expect(xhr.response.body.error).not.to.exist;
+        openOrdersTable({
+          callback: xhr => expect(xhr.response.body.error).not.to.exist,
         });
+
         // Title of the first order for User ID = 1
         cy.findByText("Awesome Concrete Shoes");
       });
@@ -766,9 +761,6 @@ describeWithToken("formatting > sandboxes", () => {
     });
 
     it("should be able to use summarize columns from joined table based on a saved question (metabase#14766)", () => {
-      cy.server();
-      cy.route("POST", "/api/dataset").as("dataset");
-
       createJoinedQuestion("14766_joined");
 
       cy.visit("/question/new");
@@ -808,9 +800,7 @@ describeWithToken("formatting > sandboxes", () => {
 
       cy.signOut();
       cy.signInAsSandboxedUser();
-      createJoinedQuestion("14841").then(({ body: { id: QUESTION_ID } }) => {
-        cy.visit(`/question/${QUESTION_ID}`);
-      });
+      createJoinedQuestion("14841", { visitQuestion: true });
 
       cy.findByText("Settings").click();
       cy.findByTestId("sidebar-left")
@@ -885,24 +875,15 @@ describeWithToken("formatting > sandboxes", () => {
               ],
             ],
           },
-          database: 1,
+          database: SAMPLE_DB_ID,
         },
         display: "pivot",
         visualization_settings: {},
       }).then(({ body: { id: QUESTION_ID } }) => {
-        cy.server();
-        cy.route("POST", `/api/card/pivot/${QUESTION_ID}/query`).as(
-          "cardQuery",
-        );
-
         cy.signOut();
         cy.signInAsSandboxedUser();
 
-        cy.visit(`/question/${QUESTION_ID}`);
-
-        cy.wait("@cardQuery").then(xhr => {
-          expect(xhr.response.body.cause).not.to.exist;
-        });
+        visitQuestion(QUESTION_ID);
       });
 
       cy.findByText("Twitter");
@@ -918,7 +899,7 @@ describeWithToken("formatting > sandboxes", () => {
       });
 
       cy.signInAsSandboxedUser();
-      cy.visit("/dashboard/1");
+      visitDashboard(1);
       cy.icon("share").click();
       cy.findByText("Dashboard subscriptions").click();
       // We're starting without email or Slack being set up so it's expected to see the following:
@@ -969,10 +950,9 @@ describeWithToken("formatting > sandboxes", () => {
 
       cy.signOut();
       cy.signInAsSandboxedUser();
-      openOrdersTable();
 
-      cy.wait("@dataset").then(xhr => {
-        expect(xhr.response.body.error).not.to.exist;
+      openOrdersTable({
+        callback: xhr => expect(xhr.response.body.error).not.to.exist,
       });
 
       cy.contains("37.65");
@@ -1026,16 +1006,17 @@ describeWithToken("formatting > sandboxes", () => {
       });
       cy.signOut();
       cy.signInAsSandboxedUser();
-      openReviewsTable();
 
-      cy.wait("@dataset").then(xhr => {
-        expect(xhr.response.body.error).not.to.exist;
+      openReviewsTable({
+        callback: xhr => expect(xhr.response.body.error).not.to.exist,
       });
 
       // Add positive assertion once this issue is fixed
     });
 
     it("sandboxed user should receive sandboxed dashboard subscription", () => {
+      cy.intercept("POST", "/api/pulse/test").as("emailSent");
+
       setupSMTP();
 
       cy.sandboxTable({
@@ -1046,14 +1027,14 @@ describeWithToken("formatting > sandboxes", () => {
       });
 
       cy.signInAsSandboxedUser();
-      cy.visit("/dashboard/1");
+      visitDashboard(1);
       cy.icon("share").click();
       cy.findByText("Dashboard subscriptions").click();
       cy.findByText("Email it").click();
       cy.findByPlaceholderText("Enter user names or email addresses").click();
       cy.findByText("User 1").click();
       cy.findByText("Send email now").click();
-      cy.findByText("Email sent");
+      cy.wait("@emailSent");
       cy.request("GET", "http://localhost:80/email").then(({ body }) => {
         expect(body[0].html).to.include("Orders in a dashboard");
         expect(body[0].html).to.include("37.65");
@@ -1063,24 +1044,27 @@ describeWithToken("formatting > sandboxes", () => {
   });
 });
 
-function createJoinedQuestion(name) {
-  return cy.createQuestion({
-    name,
+function createJoinedQuestion(name, { visitQuestion = false } = {}) {
+  return cy.createQuestion(
+    {
+      name,
 
-    query: {
-      "source-table": ORDERS_ID,
-      joins: [
-        {
-          fields: "all",
-          "source-table": PRODUCTS_ID,
-          condition: [
-            "=",
-            ["field", ORDERS.PRODUCT_ID, null],
-            ["field", PRODUCTS.ID, { "join-alias": "Products" }],
-          ],
-          alias: "Products",
-        },
-      ],
+      query: {
+        "source-table": ORDERS_ID,
+        joins: [
+          {
+            fields: "all",
+            "source-table": PRODUCTS_ID,
+            condition: [
+              "=",
+              ["field", ORDERS.PRODUCT_ID, null],
+              ["field", PRODUCTS.ID, { "join-alias": "Products" }],
+            ],
+            alias: "Products",
+          },
+        ],
+      },
     },
-  });
+    { wrapId: true, visitQuestion },
+  );
 }

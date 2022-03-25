@@ -75,10 +75,19 @@
   [setting-name]
   (boolean (Setting :key (name setting-name))))
 
+(defn- test-assert-setting-has-tag [setting-var expected-tag]
+  (let [{:keys [tag arglists]} (meta setting-var)]
+    (testing "There should not be a tag on the var itself"
+      (is (nil? tag)))
+    (testing "Arglists should be tagged\n"
+      (doseq [arglist arglists]
+        (testing (binding [*print-meta* true] (pr-str arglist))
+          (is (= expected-tag
+                 (:tag (meta arglist)))))))))
+
 (deftest string-tag-test
-  (testing "String vars defined by `defsetting` should have correct `:tag` metadata"
-    (is (= 'java.lang.String
-           (:tag (meta #'test-setting-1))))))
+  (testing "String vars defined by `defsetting` should have correct `:tag` metadata\n"
+    (test-assert-setting-has-tag #'test-setting-1 'java.lang.String)))
 
 (deftest defsetting-getter-fn-test
   (testing "Test defsetting getter fn. Should return the value from env var MB_TEST_ENV_SETTING"
@@ -297,8 +306,7 @@
 
 (deftest boolean-settings-tag-test
   (testing "Boolean settings should have correct `:tag` metadata"
-    (is (= 'java.lang.Boolean
-           (:tag (meta #'test-boolean-setting))))))
+    (test-assert-setting-has-tag #'test-boolean-setting 'java.lang.Boolean)))
 
 (deftest boolean-setting-user-facing-info-test
   (is (= {:value nil, :is_env_setting false, :env_name "MB_TEST_BOOLEAN_SETTING", :default nil}
@@ -459,8 +467,7 @@
   :type :timestamp)
 
 (deftest timestamp-settings-test
-  (is (= 'java.time.temporal.Temporal
-         (:tag (meta #'test-timestamp-setting))))
+  (test-assert-setting-has-tag #'test-timestamp-setting 'java.time.temporal.Temporal)
 
   (testing "make sure we can set & fetch the value and that it gets serialized/deserialized correctly"
     (test-timestamp-setting #t "2018-07-11T09:32:00.000Z")
@@ -701,7 +708,6 @@
                                                (db/delete! Setting :key (name setting-name))
                                                (cache/restore-cache!)))))
                                        (fn [thunk]
-                                         ()
                                          (tu/do-with-temp-env-var-value
                                           (keyword (str "mb-" (name setting-name)))
                                           site-wide-value
@@ -808,3 +814,80 @@
       (test-integer-setting "-2")
       (is (= -2
              (test-integer-setting))))))
+
+(deftest retired-settings-test
+  (testing "Should not be able to define a setting with a retired name"
+    (with-redefs [setting/retired-setting-names #{"retired-setting"}]
+      (try
+        (defsetting retired-setting (deferred-tru "A retired setting name"))
+        (catch Exception e
+          (is (= "Setting name 'retired-setting' is retired; use a different name instead"
+                 (ex-message e))))))))
+
+(defsetting test-user-local-only-setting
+  (deferred-tru  "test Setting")
+  :visibility :authenticated
+  :user-local :only)
+
+(defsetting test-user-local-allowed-setting
+  (deferred-tru "test Setting")
+  :visibility :authenticated
+  :user-local :allowed)
+
+(defsetting ^:private test-user-local-never-setting
+  (deferred-tru "test Setting")
+  :visibility :internal) ; `:never` should be the default
+
+(deftest user-local-settings-test
+  (testing "Reading and writing a user-local-only setting in the context of a user uses the user-local value"
+    (mt/with-current-user (mt/user->id :rasta)
+      (test-user-local-only-setting "ABC")
+      (is (= "ABC" (test-user-local-only-setting))))
+    (mt/with-current-user (mt/user->id :crowberto)
+      (test-user-local-only-setting "DEF")
+      (is (= "DEF" (test-user-local-only-setting))))
+    (mt/with-current-user (mt/user->id :rasta)
+      (is (= "ABC" (test-user-local-only-setting)))))
+
+  (testing "A user-local-only setting cannot have a site-wide value"
+    (is (thrown-with-msg? Throwable #"Site-wide values are not allowed" (test-user-local-only-setting "ABC"))))
+
+  (testing "Reading and writing a user-local-allowed setting in the context of a user uses the user-local value"
+    ;; TODO: mt/with-temporary-setting-values only affects site-wide value, we should figure out whether it should also
+    ;; affect user-local settings.
+    (mt/with-temporary-setting-values [test-user-local-allowed-setting nil]
+      (mt/with-current-user (mt/user->id :rasta)
+        (test-user-local-allowed-setting "ABC")
+        (is (= "ABC" (test-user-local-allowed-setting))))
+      (mt/with-current-user (mt/user->id :crowberto)
+        (test-user-local-allowed-setting "DEF")
+        (is (= "DEF" (test-user-local-allowed-setting))))
+      (mt/with-current-user (mt/user->id :rasta)
+        (is (= "ABC" (test-user-local-allowed-setting))))
+      ;; Calling the setter when not in the context of a user should set the site-wide value
+      (is (nil? (test-user-local-allowed-setting)))
+      (test-user-local-allowed-setting "GHI")
+      (mt/with-current-user (mt/user->id :crowberto)
+        (is (= "DEF" (test-user-local-allowed-setting))))
+      (mt/with-current-user (mt/user->id :rasta)
+        (is (= "ABC" (test-user-local-allowed-setting))))))
+
+  (testing "Reading and writing a user-local-never setting in the context of a user uses the site-wide value"
+    (mt/with-current-user (mt/user->id :rasta)
+      (test-user-local-never-setting "ABC")
+      (is (= "ABC" (test-user-local-never-setting))))
+    (mt/with-current-user (mt/user->id :crowberto)
+      (test-user-local-never-setting "DEF")
+      (is (= "DEF" (test-user-local-never-setting))))
+    (mt/with-current-user (mt/user->id :rasta)
+      (is (= "DEF" (test-user-local-never-setting))))
+    (is (= "DEF" (test-user-local-never-setting))))
+
+  (testing "A setting cannot be defined to allow both user-local and database-local values"
+    (is (thrown-with-msg?
+         Throwable
+         #"Setting .* allows both user-local and database-local values; this is not supported"
+         (defsetting test-user-local-and-db-local-setting
+           (deferred-tru "test Setting")
+           :user-local     :allowed
+           :database-local :allowed)))))

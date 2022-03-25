@@ -2,7 +2,7 @@ import {
   restore,
   popover,
   modal,
-  describeWithToken,
+  describeEE,
   mockSessionProperty,
 } from "__support__/e2e/cypress";
 
@@ -15,12 +15,24 @@ describe("scenarios > admin > databases > edit", () => {
     cy.route("PUT", "/api/database/*").as("databaseUpdate");
   });
 
-  describe("Connection settings", () => {
-    it("shows the connection settings for sample dataset correctly", () => {
+  describe("Database type", () => {
+    it("should be disabled for the Sample Dataset (metabase#16382)", () => {
       cy.visit("/admin/databases/1");
-      cy.findByLabelText("Display name").should("have.value", "Sample Dataset");
+      cy.findByText("H2")
+        .parentsUntil("a")
+        .should("be.disabled");
+    });
+  });
+
+  describe("Connection settings", () => {
+    it("shows the connection settings for sample database correctly", () => {
+      cy.visit("/admin/databases/1");
+      cy.findByLabelText("Display name").should(
+        "have.value",
+        "Sample Database",
+      );
       cy.findByLabelText("Connection String").should($input =>
-        expect($input[0].value).to.match(/sample-dataset\.db/),
+        expect($input[0].value).to.match(/sample-database\.db/),
       );
     });
 
@@ -40,7 +52,7 @@ describe("scenarios > admin > databases > edit", () => {
       cy.findByText("Success");
     });
 
-    it("`auto_run_queries` toggle should be ON by default for `SAMPLE_DATASET`", () => {
+    it("`auto_run_queries` toggle should be ON by default for `SAMPLE_DATABASE`", () => {
       cy.visit("/admin/databases/1");
 
       cy.findByText("Show advanced options").click();
@@ -68,7 +80,7 @@ describe("scenarios > admin > databases > edit", () => {
       );
     });
 
-    describeWithToken("caching", () => {
+    describeEE("caching", () => {
       beforeEach(() => {
         mockSessionProperty("enable-query-caching", true);
       });
@@ -92,7 +104,7 @@ describe("scenarios > admin > databases > edit", () => {
           expect(response.body.cache_ttl).to.equal(32);
 
           cy.visit("/admin/databases");
-          cy.findByTextEnsureVisible("Sample Dataset").click();
+          cy.findByTextEnsureVisible("Sample Database").click();
 
           cy.findByTextEnsureVisible("Custom").click();
           popover()
@@ -234,13 +246,13 @@ describe("scenarios > admin > databases > edit", () => {
       cy.wait("@discard_values");
     });
 
-    it("lets you remove the Sample Dataset", () => {
+    it("lets you remove the Sample Database", () => {
       cy.route("DELETE", "/api/database/1").as("delete");
 
       cy.visit("/admin/databases/1");
       cy.findByText("Remove this database").click();
       modal().within(() => {
-        cy.get("input").type("Sample Dataset");
+        cy.get("input").type("Sample Database");
         cy.get(".Button.Button--danger").click();
       });
 
@@ -254,7 +266,7 @@ describe("scenarios > admin > databases > edit", () => {
       cy.visit("/admin/databases/1");
       cy.wait("@loadDatabase");
 
-      cy.findByTestId("database-setup-help-card").should("not.exist");
+      cy.findByText("Need help connecting?").should("not.exist");
     });
   });
 });

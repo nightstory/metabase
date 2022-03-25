@@ -1,3 +1,4 @@
+import _ from "underscore";
 import Dimension, {
   FieldDimension,
   TemplateTagDimension,
@@ -12,8 +13,8 @@ import {
   metadata,
   ORDERS,
   PRODUCTS,
-  SAMPLE_DATASET,
-} from "__support__/sample_dataset_fixture";
+  SAMPLE_DATABASE,
+} from "__support__/sample_database_fixture";
 
 const nestedQuestionCard = {
   table_id: null,
@@ -58,6 +59,29 @@ const nestedQuestionCard = {
 };
 
 const PRODUCT_CATEGORY_FIELD_ID = 21;
+
+const ORDERS_USER_ID_FIELD = metadata.field(ORDERS.USER_ID.id).getPlainObject();
+
+const OVERWRITTEN_USER_ID_FIELD_METADATA = {
+  ...ORDERS_USER_ID_FIELD,
+  display_name: "Foo",
+  description: "Bar",
+  fk_target_field_id: 1,
+  semantic_type: "type/Price",
+  settings: {
+    show_mini_bar: true,
+  },
+};
+
+const ORDERS_DATASET = ORDERS.question()
+  .setDataset(true)
+  .setResultsMetadata({
+    columns: [OVERWRITTEN_USER_ID_FIELD_METADATA],
+  });
+
+// It isn't actually possible to overwrite metadata for non-models,
+// it's just needed to test it's only possible for models
+const ORDERS_WITH_OVERWRITTEN_METADATA = ORDERS_DATASET.setDataset(false);
 
 describe("Dimension", () => {
   describe("STATIC METHODS", () => {
@@ -305,7 +329,7 @@ describe("Dimension", () => {
           });
           const query = new StructuredQuery(question, {
             type: "query",
-            database: SAMPLE_DATASET.id,
+            database: SAMPLE_DATABASE.id,
             query: {
               "source-table": ORDERS.id,
             },
@@ -320,6 +344,32 @@ describe("Dimension", () => {
 
           expect(field.id).toEqual(ORDERS.TOTAL.id);
           expect(field.base_type).toEqual("type/Float");
+        });
+
+        it("should merge model's field results metadata with field info", () => {
+          const dimension = Dimension.parseMBQL(
+            ["field", ORDERS.USER_ID.id, null],
+            metadata,
+            ORDERS_DATASET.query(),
+          );
+
+          const field = dimension.field();
+          const fieldInfo = _.omit(field.getPlainObject(), "metadata", "query");
+
+          expect(fieldInfo).toEqual(OVERWRITTEN_USER_ID_FIELD_METADATA);
+        });
+
+        it("should not merge regular question's field results metadata with field info", () => {
+          const dimension = Dimension.parseMBQL(
+            ["field", ORDERS.USER_ID.id, null],
+            metadata,
+            ORDERS_WITH_OVERWRITTEN_METADATA.query(),
+          );
+
+          const field = dimension.field();
+          const fieldInfo = _.omit(field.getPlainObject(), "metadata", "query");
+
+          expect(fieldInfo).toEqual(ORDERS_USER_ID_FIELD);
         });
       });
     });
@@ -614,7 +664,7 @@ describe("Dimension", () => {
     describe("INSTANCE METHODS", () => {
       describe("mbql()", () => {
         it('returns an "expression" clause', () => {
-          expect(dimension.mbql()).toEqual(["expression", "Hello World"]);
+          expect(dimension.mbql()).toEqual(["expression", "Hello World", null]);
         });
       });
       describe("displayName()", () => {
@@ -625,12 +675,12 @@ describe("Dimension", () => {
 
       describe("column()", () => {
         expect(dimension.column()).toEqual({
-          id: ["expression", "Hello World"],
+          id: ["expression", "Hello World", null],
           name: "Hello World",
           display_name: "Hello World",
           base_type: "type/Text",
-          semantic_type: null,
-          field_ref: ["expression", "Hello World"],
+          semantic_type: "type/Text",
+          field_ref: ["expression", "Hello World", null],
         });
       });
 
@@ -657,6 +707,18 @@ describe("Dimension", () => {
             expect(field.name).toEqual("Foo");
           });
         });
+      });
+    });
+
+    describe("dimensions()", () => {
+      it("should return subdimensions according to the field type", () => {
+        const question = new Question(nestedQuestionCard, metadata);
+        const dimension = Dimension.parseMBQL(
+          ["expression", 42],
+          metadata,
+          question.query(),
+        );
+        expect(dimension.dimensions().length).toEqual(5); // 5 different binnings for a number
       });
     });
   });
@@ -731,14 +793,14 @@ describe("Dimension", () => {
     describe("INSTANCE METHODS", () => {
       describe("mbql()", () => {
         it('returns an "aggregation" clause', () => {
-          expect(dimension.mbql()).toEqual(["aggregation", 1]);
+          expect(dimension.mbql()).toEqual(["aggregation", 1, null]);
         });
       });
 
       function aggregation(agg) {
         const query = new StructuredQuery(ORDERS.question(), {
           type: "query",
-          database: SAMPLE_DATASET.id,
+          database: SAMPLE_DATABASE.id,
           query: {
             "source-table": ORDERS.id,
             aggregation: [agg],
@@ -851,7 +913,7 @@ describe("Dimension", () => {
     describe("dimension tag (ie a field filter)", () => {
       const templateTagClause = ["template-tag", "foo"];
       const query = new NativeQuery(PRODUCTS.question(), {
-        database: SAMPLE_DATASET.id,
+        database: SAMPLE_DATABASE.id,
         type: "native",
         native: {
           query: "select * from PRODUCTS where {{foo}}",
@@ -912,6 +974,12 @@ describe("Dimension", () => {
         describe("isDimensionType", () => {
           it("should evaluate to true", () => {
             expect(dimension.isDimensionType()).toBe(true);
+          });
+        });
+
+        describe("isValidDimensionType", () => {
+          it("should evaluate to true", () => {
+            expect(dimension.isValidDimensionType()).toBe(true);
           });
         });
 
@@ -1002,7 +1070,7 @@ describe("Dimension", () => {
     describe("variable tag", () => {
       const templateTagClause = ["template-tag", "cat"];
       const query = new NativeQuery(PRODUCTS.question(), {
-        database: SAMPLE_DATASET.id,
+        database: SAMPLE_DATABASE.id,
         type: "native",
         native: {
           query: "select * from PRODUCTS where CATEGORY = {{cat}}",
@@ -1119,6 +1187,72 @@ describe("Dimension", () => {
         describe("icon", () => {
           it("should return the icon associated with the underlying field", () => {
             expect(dimension.icon()).toEqual("string");
+          });
+        });
+      });
+    });
+
+    describe("broken dimension tag", () => {
+      const templateTagClause = ["template-tag", "foo"];
+      const query = new NativeQuery(PRODUCTS.question(), {
+        database: SAMPLE_DATABASE.id,
+        type: "native",
+        native: {
+          query: "select * from PRODUCTS where {{foo}}",
+          "template-tags": {
+            foo: {
+              id: "5928ca74-ca36-8706-7bed-0143d7646b6a",
+              name: "foo",
+              "display-name": "Foo",
+              type: "dimension",
+              "widget-type": "category",
+              // this should be defined
+              dimension: null,
+            },
+          },
+        },
+      });
+
+      const brokenDimension = Dimension.parseMBQL(
+        templateTagClause,
+        metadata,
+        query,
+      );
+
+      describe("instance methods", () => {
+        describe("isDimensionType", () => {
+          it("should evaluate to true", () => {
+            expect(brokenDimension.isDimensionType()).toBe(true);
+          });
+        });
+
+        describe("isValidDimensionType", () => {
+          it("should return false", () => {
+            expect(brokenDimension.isValidDimensionType()).toBe(false);
+          });
+        });
+
+        describe("isVariableType", () => {
+          it("should evaluate to false", () => {
+            expect(brokenDimension.isVariableType()).toBe(false);
+          });
+        });
+
+        describe("field", () => {
+          it("should evaluate to null", () => {
+            expect(brokenDimension.field()).toBeNull();
+          });
+        });
+
+        describe("name", () => {
+          it("should evaluate to the tag's name instead of the field's", () => {
+            expect(brokenDimension.name()).toEqual("foo");
+          });
+        });
+
+        describe("icon", () => {
+          it("should use a fallback icon", () => {
+            expect(brokenDimension.icon()).toEqual("label");
           });
         });
       });

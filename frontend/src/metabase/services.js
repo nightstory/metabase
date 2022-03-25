@@ -15,12 +15,31 @@ export const ActivityApi = {
   recent_views: GET("/api/activity/recent_views"),
 };
 
+export const BookmarkApi = {
+  card: {
+    create: POST("/api/bookmark/card/:id"),
+    delete: DELETE("/api/bookmark/card/:id"),
+  },
+  collection: {
+    create: POST("/api/bookmark/collection/:id"),
+    delete: DELETE("/api/bookmark/collection/:id"),
+  },
+  dashboard: {
+    create: POST("/api/bookmark/dashboard/:id"),
+    delete: DELETE("/api/bookmark/dashboard/:id"),
+  },
+};
+
 // only available with token loaded
 export const GTAPApi = {
   list: GET("/api/mt/gtap"),
   create: POST("/api/mt/gtap"),
   update: PUT("/api/mt/gtap/:id"),
   attributes: GET("/api/mt/user/attributes"),
+};
+
+export const StoreApi = {
+  tokenStatus: GET("/api/premium-features/token/status"),
 };
 
 // Pivot tables need extra data beyond what's described in the MBQL query itself.
@@ -99,10 +118,10 @@ export const CardApi = {
   delete: DELETE("/api/card/:cardId"),
   query: POST("/api/card/:cardId/query"),
   query_pivot: POST("/api/card/pivot/:cardId/query"),
-  // isfavorite:                  GET("/api/card/:cardId/favorite"),
-  favorite: POST("/api/card/:cardId/favorite"),
-  unfavorite: DELETE("/api/card/:cardId/favorite"),
-
+  bookmark: {
+    create: POST("/api/card/:id/bookmark"),
+    delete: DELETE("/api/card/:id/bookmark"),
+  },
   listPublic: GET("/api/card/public"),
   listEmbeddable: GET("/api/card/embeddable"),
   createPublicLink: POST("/api/card/:id/public_link"),
@@ -135,10 +154,14 @@ export const DashboardApi = {
   createPublicLink: POST("/api/dashboard/:id/public_link"),
   deletePublicLink: DELETE("/api/dashboard/:id/public_link"),
 
-  cardQuery: POST("/api/dashboard/:dashboardId/card/:cardId/query"),
-  cardQueryPivot: POST("/api/dashboard/:dashboardId/card/pivot/:cardId/query"),
+  cardQuery: POST(
+    "/api/dashboard/:dashboardId/dashcard/:dashcardId/card/:cardId/query",
+  ),
+  cardQueryPivot: POST(
+    "/api/dashboard/pivot/:dashboardId/dashcard/:dashcardId/card/:cardId/query",
+  ),
   exportCardQuery: POST(
-    "/api/dashboard/:dashboardId/card/:cardId/query/:exportFormat",
+    "/api/dashboard/:dashboardId/dashcard/:dashcardId/card/:cardId/query/:exportFormat",
   ),
 };
 
@@ -160,9 +183,11 @@ export const PublicApi = {
   cardQuery: GET("/api/public/card/:uuid/query"),
   cardQueryPivot: GET(PIVOT_PUBLIC_PREFIX + "card/:uuid/query"),
   dashboard: GET("/api/public/dashboard/:uuid"),
-  dashboardCardQuery: GET("/api/public/dashboard/:uuid/card/:cardId"),
+  dashboardCardQuery: GET(
+    "/api/public/dashboard/:uuid/dashcard/:dashcardId/card/:cardId",
+  ),
   dashboardCardQueryPivot: GET(
-    PIVOT_PUBLIC_PREFIX + "dashboard/:uuid/card/:cardId",
+    PIVOT_PUBLIC_PREFIX + "dashboard/:uuid/dashcard/:dashcardId/card/:cardId",
   ),
 };
 
@@ -194,6 +219,7 @@ export const EmailApi = {
 };
 
 export const SlackApi = {
+  getManifest: GET("/api/slack/manifest"),
   updateSettings: PUT("/api/slack/settings"),
 };
 
@@ -209,11 +235,17 @@ export const LdapApi = {
   updateSettings: PUT("/api/ldap/settings"),
 };
 
+export const TimelineApi = {
+  getTimelines: GET("/api/timeline"),
+  getCardTimelines: GET("/api/card/:cardId/timelines"),
+  getCollectionTimelines: GET("/api/collection/:collectionId/timelines"),
+};
+
 export const MetabaseApi = {
   db_list: GET("/api/database", res => res["data"]),
   db_create: POST("/api/database"),
   db_validate: POST("/api/database/validate"),
-  db_add_sample_dataset: POST("/api/database/sample_dataset"),
+  db_add_sample_database: POST("/api/database/sample_database"),
   db_get: GET("/api/database/:dbId"),
   db_update: PUT("/api/database/:id"),
   db_delete: DELETE("/api/database/:dbId"),

@@ -11,6 +11,7 @@ describe("scenarios > auth > signin", () => {
   beforeEach(() => {
     restore();
     cy.signOut();
+    cy.intercept("POST", "/api/dataset").as("dataset");
   });
 
   it("should redirect to  /auth/login", () => {
@@ -57,8 +58,9 @@ describe("scenarios > auth > signin", () => {
     cy.visit("/");
     // Browse data moved to an icon
     browse().click();
-    cy.contains("Sample Dataset").click();
+    cy.contains("Sample Database").click();
     cy.contains("Orders").click();
+    cy.wait("@dataset");
     cy.contains("37.65");
 
     // signout and reload page with question hash in url
@@ -71,6 +73,7 @@ describe("scenarios > auth > signin", () => {
     cy.findByText("Sign in").click();
 
     // order table should load after login
+    cy.wait("@dataset");
     cy.contains("37.65");
   });
 

@@ -22,7 +22,7 @@
   [& {:as group-and-input->expected-pairs}]
   (tests 'normalize-tokens #'normalize/normalize-tokens group-and-input->expected-pairs))
 
-(t/deftest normalize-tokens-test
+(t/deftest ^:parallel normalize-tokens-test
   (normalize-tests
     "Query type should get normalized"
     {{:type "NATIVE"}
@@ -45,19 +45,6 @@
     {{:filter ["=" ["+" ["SEGMENT" 10] 1] 10]}
      {:filter [:= [:+ [:segment 10] 1] 10]}}
 
-    "are expression names exempt from lisp-casing/lower-casing?"
-    {{"query" {"expressions" {:sales_tax ["-" ["field-id" 10] ["field-id" 20]]}}}
-     {:query {:expressions {:sales_tax [:- [:field-id 10] [:field-id 20]]}}}}
-
-    "expression references should be exempt too"
-    {{:order-by [[:desc [:expression "SALES_TAX"]]]}
-     {:order-by [[:desc [:expression "SALES_TAX"]]]}}
-
-    "... but they should be converted to strings if passed in as a KW for some reason. Make sure we preserve namespace!"
-    {{:order-by [[:desc ["expression" :SALES/TAX]]]}
-     {:order-by [[:desc [:expression "SALES/TAX"]]]}}
-
-
     "field literals should be exempt too"
     {{:order-by [[:desc [:field-literal "SALES_TAX" :type/Number]]]}
      {:order-by [[:desc [:field-literal "SALES_TAX" :type/Number]]]}}
@@ -77,7 +64,7 @@
 
 ;;; -------------------------------------------------- aggregation ---------------------------------------------------
 
-(t/deftest normalize-aggregations-test
+(t/deftest ^:parallel normalize-aggregations-test
   (normalize-tests
     "Legacy 'rows' aggregations"
     {{:query {"AGGREGATION" "ROWS"}}
@@ -135,12 +122,13 @@
     {{:query {:aggregation ["+" ["sum" 10] ["SUM" 20] ["sum" 30]]}}
      {:query {:aggregation [:+ [:sum 10] [:sum 20] [:sum 30]]}}}
 
-    "expression ags should handle datetime arithemtics"
-    {{:query {:expressions {:prev_month ["+" ["field-id" 13] ["interval" -1 "month"]]}}}
-     {:query {:expressions {:prev_month [:+ [:field-id 13] [:interval -1 :month]]}}},
+    "expression references should be exempt too"
+    {{:order-by [[:desc [:expression "SALES_TAX"]]]}
+     {:order-by [[:desc [:expression "SALES_TAX"]]]}}
 
-     {:query {:expressions {:prev_month ["-" ["field-id" 13] ["interval" 1 "month"] ["interval" 1 "day"]]}}}
-     {:query {:expressions {:prev_month [:- [:field-id 13] [:interval 1 :month] [:interval 1 :day]]}}}}
+    "... but they should be converted to strings if passed in as a KW for some reason. Make sure we preserve namespace!"
+    {{:order-by [[:desc ["expression" :SALES/TAX]]]}
+     {:order-by [[:desc [:expression "SALES/TAX"]]]}}
 
     "case"
     {{:query {:aggregation ["sum" ["case"
@@ -168,7 +156,7 @@
 
 ;;; ---------------------------------------------------- order-by ----------------------------------------------------
 
-(t/deftest normalize-order-by-test
+(t/deftest ^:parallel normalize-order-by-test
   (normalize-tests
     "does order-by get properly normalized?"
     {{:query {"ORDER_BY" [[10 "ASC"]]}}
@@ -186,7 +174,7 @@
 
 ;;; ----------------------------------------------------- filter -----------------------------------------------------
 
-(t/deftest normalize-filter-test
+(t/deftest ^:parallel normalize-filter-test
   (normalize-tests
     "the unit & amount in time interval clauses should get normalized"
     {{:query {"FILTER" ["time-interval" 10 "current" "day"]}}
@@ -223,7 +211,7 @@
 
 ;;; --------------------------------------------------- parameters ---------------------------------------------------
 
-(t/deftest normalize-parmaeters-test
+(t/deftest ^:parallel normalize-parmaeters-test
   (normalize-tests
     "make sure we're not running around trying to normalize the type in native query params"
     {{:type       :native
@@ -256,7 +244,7 @@
                     :target [:dimension [:template-tag "names_list"]]
                     :value  ["=" 10 20]}]}}))
 
-(t/deftest normalize-template-tags-test
+(t/deftest ^:parallel normalize-template-tags-test
   (letfn [(query-with-template-tags [template-tags]
             {:type   :native
              :native {:query         "SELECT COUNT(*) FROM \"PUBLIC\".\"CHECKINS\" WHERE {{checkin_date}}"
@@ -274,7 +262,8 @@
                 :template-tags {"checkin_date" {:name         "checkin_date"
                                                 :display-name "Checkin Date"
                                                 :type         :dimension
-                                                :dimension    [:field 14 nil]}}}}}
+                                                :dimension    [:field 14 nil]
+                                                :widget-type  :category}}}}}
 
      "Don't try to normalize template-tag name/display name. Names should get converted to strings."
      {(query-with-template-tags
@@ -286,7 +275,8 @@
        {"checkin_date" {:name         "checkin_date"
                         :display-name "looks/like-a-keyword"
                         :type         :dimension
-                        :dimension    [:field 14 nil]}})
+                        :dimension    [:field 14 nil]
+                        :widget-type  :category}})
 
       (query-with-template-tags
        {:checkin_date {:name         :checkin_date
@@ -297,7 +287,8 @@
        {"checkin_date" {:name         "checkin_date"
                         :display-name "Checkin Date"
                         :type         :dimension
-                        :dimension    [:field 14 nil]}})}
+                        :dimension    [:field 14 nil]
+                        :widget-type  :category}})}
 
      "Actually, `:name` should just get copied over from the map key if it's missing or different"
      {(query-with-template-tags
@@ -308,7 +299,8 @@
        {"checkin_date" {:name         "checkin_date"
                         :display-name "Checkin Date"
                         :type         :dimension
-                        :dimension    [:field 14 nil]}})
+                        :dimension    [:field 14 nil]
+                        :widget-type  :category}})
 
       (query-with-template-tags
        {"checkin_date" {:name         "something_else"
@@ -319,7 +311,8 @@
        {"checkin_date" {:name         "checkin_date"
                         :display-name "Checkin Date"
                         :type         :dimension
-                        :dimension    [:field 14 nil]}})}
+                        :dimension    [:field 14 nil]
+                        :widget-type  :category}})}
 
      "`:type` should get normalized"
      {(query-with-template-tags
@@ -331,7 +324,8 @@
        {"names_list" {:name         "names_list"
                       :display-name "Names List"
                       :type         :dimension
-                      :dimension    [:field-id 49]}})}
+                      :dimension    [:field-id 49]
+                      :widget-type  :category}})}
 
      "`:widget-type` should get normalized"
      {(query-with-template-tags
@@ -358,7 +352,8 @@
        {"checkin_date" {:name         "checkin_date"
                         :display-name "Checkin Date"
                         :type         :dimension
-                        :dimension    [:field-id 14]}})}
+                        :dimension    [:field-id 14]
+                        :widget-type  :category}})}
 
      "Don't normalize `:default` values"
      {(query-with-template-tags
@@ -384,12 +379,42 @@
       ;; `:name` still gets copied over from the map key.
       {:database 1
        :type     :native
-       :native   {:template-tags {"x" {:name "x"}}}}})))
+       :native   {:template-tags {"x" {:name "x"}}}}}
+
+     ":dimension (Field filter) template tags with no :widget-type should get :category as a default type (#20643)"
+     {{:database 1
+       :type     :native
+       :native   {:template-tags {"x" {:name "x", :type :dimension}}}}
+      {:database 1
+       :type     :native
+       :native   {:template-tags {"x" {:name        "x"
+                                       :type        :dimension
+                                       :widget-type :category}}}}
+      ;; don't add if there's already an existing `:widget-type`
+      {:database 1
+       :type     :native
+       :native   {:template-tags {"x" {:name        "x"
+                                       :type        :dimension
+                                       :widget-type :string/=}}}}
+      {:database 1
+       :type     :native
+       :native   {:template-tags {"x" {:name        "x"
+                                       :type        :dimension
+                                       :widget-type :string/=}}}}
+      ;; don't add if this isn't a Field filter (`:type` is not `:dimension`)
+      {:database 1
+       :type     :native
+       :native   {:template-tags {"x" {:name "x"
+                                       :type :nonsense}}}}
+      {:database 1
+       :type     :native
+       :native   {:template-tags {"x" {:name "x"
+                                       :type :nonsense}}}}})))
 
 
 ;;; ------------------------------------------------- source queries -------------------------------------------------
 
-(t/deftest normalize-source-queries-test
+(t/deftest ^:parallel normalize-source-queries-test
   (normalize-tests
     "Make sure token normalization works correctly on source queries"
     {{:database 4
@@ -420,7 +445,7 @@
 
 ;;; ----------------------------------------------------- joins ------------------------------------------------------
 
-(t/deftest normalize-joins-test
+(t/deftest ^:parallel normalize-joins-test
   (normalize-tests
     "do entries in the `:joins` clause get normalized?"
     {{:database 4
@@ -464,7 +489,7 @@
                                                 :fields   [[:field-id 1]
                                                            [:field-literal "MY_FIELD" :type/Integer]]}]}}}}))
 
-(t/deftest normalize-source-query-in-joins-test
+(t/deftest ^:parallel normalize-source-query-in-joins-test
   (t/testing "does a `:source-query` in `:joins` get normalized?"
     (letfn [(query-with-joins [joins]
               {:database 4
@@ -492,7 +517,7 @@
 
 ;;; ----------------------------------------------------- other ------------------------------------------------------
 
-(t/deftest normalize-execution-context-test
+(t/deftest ^:parallel normalize-execution-context-test
   (normalize-tests
     "Does the QueryExecution context get normalized?"
     {{:context "json-download"}
@@ -502,7 +527,7 @@
     {{:context nil}
      {:context nil}}))
 
-(t/deftest params-normalization-test
+(t/deftest ^:parallel params-normalization-test
   (normalize-tests
     ":native :params shouldn't get normalized."
     {{:native {:query  "SELECT * FROM venues WHERE name = ?"
@@ -510,13 +535,39 @@
      {:native {:query  "SELECT * FROM venues WHERE name = ?"
                :params ["Red Medicine"]}}}))
 
-(t/deftest normalize-projections-test
+(t/deftest ^:parallel normalize-projections-test
   (normalize-tests
     "Native :projections shouldn't get normalized."
     {{:type   :native
       :native {:projections ["_id" "name" "category_id" "latitude" "longitude" "price"]}}
      {:type   :native
       :native {:projections ["_id" "name" "category_id" "latitude" "longitude" "price"]}}}))
+
+;; this is also covered
+(t/deftest ^:parallel normalize-expressions-test
+  (normalize-tests
+   "Expression names should get normalized to strings."
+   {{:query {"expressions" {:abc ["+" 1 2]}
+             :fields       [["expression" :abc]]}}
+    {:query {:expressions {"abc" [:+ 1 2]}
+             :fields      [[:expression "abc"]]}}}
+
+   "are expression names exempt from lisp-casing/lower-casing?"
+   {{"query" {"expressions" {:sales_tax ["-" ["field-id" 10] ["field-id" 20]]}}}
+    {:query {:expressions {"sales_tax" [:- [:field-id 10] [:field-id 20]]}}}}
+
+   "expressions should handle datetime arithemtics"
+   {{:query {:expressions {:prev_month ["+" ["field-id" 13] ["interval" -1 "month"]]}}}
+    {:query {:expressions {"prev_month" [:+ [:field-id 13] [:interval -1 :month]]}}},
+
+    {:query {:expressions {:prev_month ["-" ["field-id" 13] ["interval" 1 "month"] ["interval" 1 "day"]]}}}
+    {:query {:expressions {"prev_month" [:- [:field-id 13] [:interval 1 :month] [:interval 1 :day]]}}}}
+
+   "expressions handle namespaced keywords correctly"
+   {{:query {"expressions" {:abc/def ["+" 1 2]}
+             :fields       [["expression" :abc/def]]}}
+    {:query {:expressions {"abc/def" [:+ 1 2]}
+             :fields      [[:expression "abc/def"]]}}}))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -526,7 +577,7 @@
 (defn- canonicalize-tests {:style/indent 0} [& {:as group->input->expected}]
   (tests 'canonicalize #'normalize/canonicalize group->input->expected))
 
-(t/deftest wrap-implicit-field-id-test
+(t/deftest ^:parallel wrap-implicit-field-id-test
   (t/testing "Does our `wrap-implict-field-id` fn work?"
     (doseq [input [10 [:field 10 nil]]]
       (t/testing (pr-str (list 'wrap-implicit-field-id input))
@@ -536,7 +587,7 @@
       (t/is (= [:field-id 10]
                (#'normalize/wrap-implicit-field-id [:field-id 10]))))))
 
-(t/deftest canonicalize-field-test
+(t/deftest ^:parallel canonicalize-field-test
   (canonicalize-tests
     "If someone accidentally nests `:field` clauses, we should fix it for them."
     {{:query {:fields [[:field [:field 1 {:a 100, :b 200}] {:b 300}]]}}
@@ -552,7 +603,7 @@
 
 ;;; ------------------------------------------------ binning strategy ------------------------------------------------
 
-(t/deftest canonicalize-binning-strategy-test
+(t/deftest ^:parallel canonicalize-binning-strategy-test
   (canonicalize-tests
     "make sure `binning-strategy` wraps implicit Field IDs"
     {{:query {:breakout [[:binning-strategy 10 :bin-width 2000]]}}
@@ -561,7 +612,7 @@
 
 ;;; -------------------------------------------------- aggregation ---------------------------------------------------
 
-(t/deftest canonicalize-aggregations-test
+(t/deftest ^:parallel canonicalize-aggregations-test
   (canonicalize-tests
     "field ID should get wrapped in field-id and ags should be converted to multiple ag syntax"
     {{:query {:aggregation [:count 10]}}
@@ -666,7 +717,7 @@
 
 ;;; ---------------------------------------------------- breakout ----------------------------------------------------
 
-(t/deftest canonicalize-breakout-test
+(t/deftest ^:parallel canonicalize-breakout-test
   (canonicalize-tests
     "implicit Field IDs should get wrapped in [:field-id] in :breakout"
     {{:query {:breakout [10]}}
@@ -688,7 +739,7 @@
 
 ;;; ----------------------------------------------------- fields -----------------------------------------------------
 
-(t/deftest canonicalize-fields-test
+(t/deftest ^:parallel canonicalize-fields-test
   (canonicalize-tests
     "implicit Field IDs should get wrapped in [:field-id] in :fields"
     {{:query {:fields [10]}}
@@ -707,7 +758,7 @@
 
 ;;; ----------------------------------------------------- filter -----------------------------------------------------
 
-(t/deftest canonicalize-filter-test
+(t/deftest ^:parallel canonicalize-filter-test
   (canonicalize-tests
     "implicit Field IDs should get wrapped in [:field-id] in filters"
     {{:query {:filter [:= 10 20]}}
@@ -847,7 +898,7 @@
 
 ;;; ---------------------------------------------------- order-by ----------------------------------------------------
 
-(t/deftest canonicalize-order-by-test
+(t/deftest ^:parallel canonicalize-order-by-test
   (canonicalize-tests
     "ORDER BY: MBQL 95 [field direction] should get translated to MBQL 98+ [direction field]"
     {{:query {:order-by [[[:field-id 10] :asc]]}}
@@ -879,7 +930,7 @@
 
 ;;; ------------------------------------------------- source queries -------------------------------------------------
 
-(t/deftest canonicalize-source-queries-test
+(t/deftest ^:parallel canonicalize-source-queries-test
   (canonicalize-tests
     "Make sure canonicalization works correctly on source queries"
     {{:database 4
@@ -912,7 +963,7 @@
 ;;; |                                          WHOLE-QUERY TRANSFORMATIONS                                           |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(t/deftest whole-query-transformations-test
+(t/deftest ^:parallel whole-query-transformations-test
   (tests 'perform-whole-query-transformations #'normalize/perform-whole-query-transformations
     {(str "If you specify a field in a breakout and in the Fields clause, we should go ahead and remove it from the "
           "Fields clause, because it is (obviously) implied that you should get that Field back.")
@@ -961,7 +1012,7 @@
 ;;; |                                              REMOVE EMPTY CLAUSES                                              |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(t/deftest remove-empty-clauses-test
+(t/deftest ^:parallel remove-empty-clauses-test
   (tests 'remove-empty-clauses #'normalize/remove-empty-clauses
     {"empty sequences should get removed"
      {{:x [], :y [100]}
@@ -982,7 +1033,7 @@
       {:a {:b 100}, :c {:d nil}}
       {:a {:b 100}}}}))
 
-(t/deftest remove-empty-options-from-field-clause-test
+(t/deftest ^:parallel remove-empty-options-from-field-clause-test
   (tests 'remove-empty-clauses #'normalize/remove-empty-clauses
     {"We should remove empty options maps"
      {[:field 2 {}]
@@ -1014,7 +1065,7 @@
 ;;; |                                            PUTTING IT ALL TOGETHER                                             |
 ;;; +----------------------------------------------------------------------------------------------------------------+
 
-(t/deftest e2e-mbql-95-query-test
+(t/deftest ^:parallel e2e-mbql-95-query-test
   (t/testing "With an ugly MBQL 95 query, does everything get normalized nicely?"
     (t/is (= {:type  :query
               :query {:source-table 10
@@ -1028,12 +1079,13 @@
                                            "filter"       ["and" ["=" 10 ["datetime-field" 20 "as" "day"]]]
                                            "order-by"     [[10 "desc"]]}})))))
 
-(t/deftest e2e-native-query-with-params-test
+(t/deftest ^:parallel e2e-native-query-with-params-test
   (t/testing "let's try doing the full normalization on a native query w/ params"
     (t/is (= {:native     {:query         "SELECT * FROM CATEGORIES WHERE {{names_list}}"
                            :template-tags {"names_list" {:name         "names_list"
                                                          :display-name "Names List"
                                                          :type         :dimension
+                                                         :widget-type  :category
                                                          :dimension    [:field 49 nil]}}}
               :parameters [{:type   :text
                             :target [:dimension [:template-tag "names_list"]]
@@ -1048,7 +1100,7 @@
                              :target ["dimension" ["template-tag" "names_list"]]
                              :value  ["BBQ" "Bakery" "Bar"]}]})))))
 
-(t/deftest e2e-big-query-with-segments-test
+(t/deftest ^:parallel e2e-big-query-with-segments-test
   (t/testing "let's try normalizing a big query with SEGMENTS"
     (t/is (= {:database 1
               :type     :query
@@ -1066,7 +1118,7 @@
                                          ["SEGMENT" 4]
                                          ["SEGMENT" 5]]}})))))
 
-(t/deftest e2e-source-queries-test
+(t/deftest ^:parallel e2e-source-queries-test
   (t/testing "make sure source queries get normalized properly!"
     (t/is (= {:database 4
               :type     :query
@@ -1086,7 +1138,7 @@
                                                                       :required     true
                                                                       :default      "Widget"}}}}})))))
 
-(t/deftest e2e-rows-aggregation-test
+(t/deftest ^:parallel e2e-rows-aggregation-test
   (t/testing "make sure `rows` aggregations get removed"
     (t/is (= {:database 4
               :type     :query
@@ -1096,7 +1148,7 @@
                :type     :query
                :query    {"source_query" {"source_table" 1, "aggregation" "rows"}}})))))
 
-(t/deftest e2e-parameters-test
+(t/deftest ^:parallel e2e-parameters-test
   (t/testing (str "make sure that parameters get normalized/canonicalized correctly. value should not get normalized, "
                   "but type should; target should do canonicalization for MBQL clauses")
     (t/is (= {:type       :query
@@ -1133,7 +1185,7 @@
                :type "native"
                :parameters []})))))
 
-(t/deftest e2e-source-metadata-test
+(t/deftest ^:parallel e2e-source-metadata-test
   (t/testing "make sure `:source-metadata` gets normalized the way we'd expect:"
     (t/testing "1. Type names should get converted to keywords"
       (t/is (= {:query {:source-metadata
@@ -1182,7 +1234,7 @@
                                                                            "percent-email"  0.0
                                                                            "average-length" 15.63}}}}]}))))))
 
-(t/deftest normalize-nil-values-in-native-maps-test
+(t/deftest ^:parallel normalize-nil-values-in-native-maps-test
   (t/testing "nil values in native query maps (e.g. MongoDB queries) should not get removed during normalization.\n"
     (letfn [(test-normalization [native-query]
               (let [native-source-query (set/rename-keys native-query {:query :native})]
@@ -1211,7 +1263,7 @@
       (t/testing "`nil` values inside native :params shouldn't get removed"
         (test-normalization {:query "SELECT ?" :params [nil]})))))
 
-(t/deftest empty-test
+(t/deftest ^:parallel empty-test
   (t/testing "test a query with :is-empty"
     (t/is (= {:query {:filter [:and
                                [:> [:field 4 nil] 1]
@@ -1225,7 +1277,7 @@
                                                           [:= [:field-id 5] "abc"]
                                                           [:between [:field-id 9] 0 25]]]}})))))
 
-(t/deftest modernize-fields-test
+(t/deftest ^:parallel modernize-fields-test
   (t/testing "some extra tests for Field clause canonicalization to the modern `:field` clause."
     (doseq [[form expected] {[:=
                               [:datetime-field [:joined-field "source" [:field-id 100]] :month]
@@ -1241,7 +1293,7 @@
         (t/is (= expected
                  (#'normalize/canonicalize-mbql-clauses form)))))))
 
-(t/deftest modernize-fields-e2e-test
+(t/deftest ^:parallel modernize-fields-e2e-test
   (t/testing "Should be able to modernize legacy MBQL '95 Field clauses"
     (t/is (= {:database 1
               :type     :query
@@ -1270,7 +1322,7 @@
                                          :aggregation  [[:count]]
                                          :breakout     [:field 3 {:temporal-unit :month, :source-field 4}]}}})))))
 
-(t/deftest normalize-fragment-test
+(t/deftest ^:parallel normalize-fragment-test
   (t/testing "normalize-fragment"
     (t/testing "shouldn't try to do anything crazy non-standard MBQL clauses like `:dimension` (from automagic dashboards)"
       (t/is (= [:time-interval [:dimension "JoinDate"] -30 :day]
@@ -1294,7 +1346,7 @@
                (normalize/normalize-fragment nil
                                              [:field 2 {"temporal-unit" "day"}]))))))
 
-(t/deftest normalize-source-metadata-test
+(t/deftest ^:parallel normalize-source-metadata-test
   (t/testing "normalize-source-metadata"
     (t/testing "should convert legacy field_refs to modern `:field` clauses"
       (t/is (= {:field_ref [:field 1 {:temporal-unit :month}]}
@@ -1305,7 +1357,7 @@
                (normalize/normalize-source-metadata
                 {:field_ref ["field" 1 {:temporal-unit "month"}]}))))))
 
-(t/deftest do-not-normalize-fingerprints-test
+(t/deftest ^:parallel do-not-normalize-fingerprints-test
   (t/testing "Numbers in fingerprints shouldn't get normalized"
     (let [fingerprint {:global {:distinct-count 1, :nil% 0}
                        :type   {:type/Number {:min 1
@@ -1331,7 +1383,7 @@
         (t/is (= query
                  (normalize/normalize query)))))))
 
-(t/deftest error-messages-test
+(t/deftest ^:parallel error-messages-test
   (t/testing "Normalization error messages should be sane"
     (let [bad-query {:database 1
                      :type     :native

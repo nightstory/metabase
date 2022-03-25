@@ -66,11 +66,13 @@
       (when-not (some
                  (partial isa? k)
                  ancestor-types)
-        (let [message (tru "Invalid Field {0} {1}" column-name k)]
+        (let [message (tru "Invalid value for Field column {0}: {1} is not a descendant of any of these types: {2}"
+                           (pr-str column-name) (pr-str k) (pr-str ancestor-types))]
           (throw (ex-info message
-                          {:status-code 400
-                           :errors      {column-name message}
-                           :value       k}))))
+                          {:status-code       400
+                           :errors            {column-name message}
+                           :value             k
+                           :allowed-ancestors ancestor-types}))))
       (u/qualified-name k))))
 
 (defn- hierarchy-keyword-out [column-name & {:keys [fallback-type ancestor-types]}]
@@ -170,7 +172,8 @@
                                        :visibility_type   :keyword
                                        :has_field_values  :keyword
                                        :fingerprint       :json-for-fingerprints
-                                       :settings          :json})
+                                       :settings          :json
+                                       :nfc_path          :json})
           :properties     (constantly {:timestamped? true})
           :pre-insert     pre-insert})
 

@@ -94,7 +94,7 @@ describe("scenarios > filters > sql filters > basic filter types", () => {
 
     it("when set through the filter widget", () => {
       filterWidget().click();
-      // Since we have fixed dates in Sample Dataset (dating back a couple of years), it'd be cumbersome to click back month by month.
+      // Since we have fixed dates in Sample Database (dating back a couple of years), it'd be cumbersome to click back month by month.
       // Instead, let's choose the 15th of the current month and assert that there are no products / no results.
       cy.findByText("15").click();
       cy.findByText("Update filter").click();
@@ -119,6 +119,40 @@ describe("scenarios > filters > sql filters > basic filter types", () => {
         cy.findByText("No results!");
       });
     });
+  });
+
+  it("displays parameter field on desktop and mobile", () => {
+    SQLFilter.enterParameterizedQuery(
+      "SELECT * FROM products WHERE products.category = {{testingparamvisbility77}}",
+    );
+
+    SQLFilter.setWidgetValue("Gizmo");
+    SQLFilter.runQuery();
+
+    cy.get("fieldset")
+      .findByText("Testingparamvisbility77")
+      .should("be.visible");
+
+    // close sidebar
+    cy.findByTestId("sidebar-right").within(() => {
+      cy.get(".Icon-close").click();
+    });
+
+    // resize window to mobile form factor
+    cy.viewport(480, 800);
+
+    cy.get("fieldset")
+      .findByText("Testingparamvisbility77")
+      .should("be.visible");
+
+    // collapse editor
+    cy.get(".Icon-contract")
+      .first()
+      .click();
+
+    cy.get("fieldset")
+      .findByText("Testingparamvisbility77")
+      .should("be.visible");
   });
 
   // flaky test (#19454)

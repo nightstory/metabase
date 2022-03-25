@@ -1,5 +1,6 @@
 /* eslint-disable react/prop-types */
 import React from "react";
+import { connect } from "react-redux";
 
 import ExplicitSize from "metabase/components/ExplicitSize";
 import ChartCaption from "metabase/visualizations/components/ChartCaption";
@@ -43,6 +44,7 @@ import { memoize } from "metabase-lib/lib/utils";
 
 // NOTE: pass `CardVisualization` so that we don't include header when providing size to child element
 @ExplicitSize({ selector: ".CardVisualization" })
+@connect()
 export default class Visualization extends React.PureComponent {
   constructor(props) {
     super(props);
@@ -65,7 +67,6 @@ export default class Visualization extends React.PureComponent {
     isEditing: false,
     isSettings: false,
     isQueryBuilder: false,
-    isClickable: true,
     onUpdateVisualizationSettings: () => {},
     // prefer passing in a function that doesn't cause the application to reload
     onChangeLocation: location => {
@@ -80,7 +81,12 @@ export default class Visualization extends React.PureComponent {
   UNSAFE_componentWillReceiveProps(newProps) {
     if (
       !isSameSeries(newProps.rawSeries, this.props.rawSeries) ||
-      !Utils.equals(newProps.settings, this.props.settings)
+      !Utils.equals(newProps.settings, this.props.settings) ||
+      !Utils.equals(newProps.timelineEvents, this.props.timelineEvents) ||
+      !Utils.equals(
+        newProps.selectedTimelineEventIds,
+        this.props.selectedTimelineEventIds,
+      )
     ) {
       this.transform(newProps);
     }
@@ -184,12 +190,17 @@ export default class Visualization extends React.PureComponent {
     if (!metadata || !card) {
       return;
     }
+    const { isQueryBuilder, queryBuilderMode } = this.props;
     const question = new Question(card, metadata);
 
     // Datasets in QB should behave as raw tables opened in simple mode
     // composeDataset replaces the dataset_query with a clean query using the dataset as a source table
     // Ideally, this logic should happen somewhere else
-    return question.isDataset() ? question.composeDataset() : question;
+    return question.isDataset() &&
+      isQueryBuilder &&
+      queryBuilderMode !== "dataset"
+      ? question.composeDataset()
+      : question;
   }
 
   getClickActions(clicked) {
@@ -214,8 +225,8 @@ export default class Visualization extends React.PureComponent {
   }
 
   visualizationIsClickable = clicked => {
-    const { onChangeCardAndRun, isClickable } = this.props;
-    if (!onChangeCardAndRun || !isClickable) {
+    const { onChangeCardAndRun } = this.props;
+    if (!onChangeCardAndRun) {
       return false;
     }
     try {
@@ -227,6 +238,8 @@ export default class Visualization extends React.PureComponent {
   };
 
   handleVisualizationClick = clicked => {
+    const { handleVisualizationClick } = this.props;
+
     if (clicked) {
       MetabaseAnalytics.trackStructEvent(
         "Actions",
@@ -237,12 +250,20 @@ export default class Visualization extends React.PureComponent {
       );
     }
 
-    if (
-      performDefaultAction(this.getClickActions(clicked), {
+    if (typeof handleVisualizationClick === "function") {
+      handleVisualizationClick(clicked);
+      return;
+    }
+
+    const didPerformDefaultAction = performDefaultAction(
+      this.getClickActions(clicked),
+      {
         dispatch: this.props.dispatch,
         onChangeCardAndRun: this.handleOnChangeCardAndRun,
-      })
-    ) {
+      },
+    );
+
+    if (didPerformDefaultAction) {
       return;
     }
 
@@ -503,6 +524,7 @@ export default class Visualization extends React.PureComponent {
             card={series[0].card} // convenience for single-series visualizations
             data={series[0].data} // convenience for single-series visualizations
             hovered={hovered}
+            clicked={clicked}
             headerIcon={hasHeader ? null : headerIcon}
             onHoverChange={this.handleHoverChange}
             onVisualizationClick={this.handleVisualizationClick}

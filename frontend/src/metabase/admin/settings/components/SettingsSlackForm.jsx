@@ -7,9 +7,9 @@ import MetabaseUtils from "metabase/lib/utils";
 import SettingsSetting from "./SettingsSetting";
 import { updateSlackSettings } from "../settings";
 
-import Button from "metabase/components/Button";
+import Button from "metabase/core/components/Button";
 import Icon from "metabase/components/Icon";
-import ExternalLink from "metabase/components/ExternalLink";
+import ExternalLink from "metabase/core/components/ExternalLink";
 
 import _ from "underscore";
 import { t, jt } from "ttag";
@@ -121,14 +121,6 @@ export default class SettingsSlackForm extends Component {
         [element.key]: MetabaseUtils.isEmpty(value) ? null : value,
       },
     });
-
-    if (element.key === "metabot-enabled") {
-      MetabaseAnalytics.trackStructEvent(
-        "Slack Settings",
-        "Toggle Metabot",
-        value,
-      );
-    }
   }
 
   handleFormErrors(error) {
@@ -210,7 +202,7 @@ export default class SettingsSlackForm extends Component {
           ? element.defaultValue
           : formData[element.key];
 
-      if (element.key === "slack-token") {
+      if (element.key === "slack-app-token") {
         return (
           <SettingsSetting
             key={element.key}
@@ -218,16 +210,6 @@ export default class SettingsSlackForm extends Component {
             onChange={value => this.handleChangeEvent(element, value)}
             errorMessage={errorMessage}
             fireOnChange
-          />
-        );
-      } else if (element.key === "metabot-enabled") {
-        return (
-          <SettingsSetting
-            key={element.key}
-            setting={{ ...element, value }}
-            onChange={value => this.handleChangeEvent(element, value)}
-            errorMessage={errorMessage}
-            disabled={!this.state.formData["slack-token"]}
           />
         );
       }

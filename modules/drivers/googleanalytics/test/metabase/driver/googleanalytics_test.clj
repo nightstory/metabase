@@ -262,7 +262,7 @@
                                   (t/zone-id system-timezone-id))
         (is (= expected-ga-query
                (do-with-some-fields
-                (comp qp/query->native query-with-some-fields))))))))
+                (comp qp/compile query-with-some-fields))))))))
 
 ;; ok, now do the same query again, but run the entire QP pipeline, swapping out a few things so nothing is actually
 ;; run externally.
@@ -301,6 +301,7 @@
                                                          :name              "ga:eventLabel"
                                                          :settings          nil
                                                          :source            :breakout
+                                                         :nfc_path          nil
                                                          :parent_id         nil
                                                          :visibility_type   :normal
                                                          :display_name      "ga:eventLabel"
@@ -343,7 +344,7 @@
                                     :breakout     [[:field (:id date-field) {:temporal-unit :day}]]}
                          :type     :query
                          :database (:id db)}
-                        qp/query->native
+                        qp/compile
                         :query
                         (select-keys [:start-date :end-date :dimensions :metrics :sort])))
                  "Last 4 months should includy July, August, September, and October (July 1st - October 31st)"))))))))

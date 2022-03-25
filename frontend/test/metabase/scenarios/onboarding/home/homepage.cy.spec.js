@@ -10,10 +10,22 @@ describe("scenarios > home > homepage", () => {
       cy.signInAsAdmin();
     });
 
+    it.skip("should handle server errors on load (metabase#20469)", () => {
+      cy.intercept("GET", "/api/database", req => {
+        req.reply({
+          statusCode: 500,
+        });
+      });
+
+      cy.visit("/");
+      // Even if we don't receive a list of our databases, we should still be able to load all items in the root collection
+      cy.findByText("Browse all items");
+    });
+
     it("should allow basic navigation", () => {
       cy.visit("/");
       cy.findByText("Add my data").click();
-      cy.findByText("Need help setting up your database?");
+      cy.findByText("Need help connecting?");
 
       cy.visit("/");
       cy.findByText("invite another teammate").click();
@@ -29,12 +41,12 @@ describe("scenarios > home > homepage", () => {
       cy.findByText("Other users' personal collections");
 
       cy.visit("/");
-      cy.findByTextEnsureVisible("Sample Dataset").click();
+      cy.findByTextEnsureVisible("Sample Database").click();
       cy.findByText("Learn about our data");
 
       cy.visit("/");
       cy.findByText("Add a database").click();
-      cy.findByText("Need help setting up your database?");
+      cy.findByText("Need help connecting?");
     });
 
     it("should show pinned dashboards", () => {
@@ -64,7 +76,7 @@ describe("scenarios > home > homepage", () => {
       cy.findByText("Try these x-rays based on your data").should("not.exist");
     });
 
-    it("should show a modal when there is a newly created database", () => {
+    it("should show a modal when there is a newly created syncing database", () => {
       mockSyncingDatabase();
       cy.visit("/");
 
@@ -97,7 +109,7 @@ describe("scenarios > home > homepage", () => {
       cy.findByText("Your personal collection");
 
       cy.visit("/");
-      cy.findByTextEnsureVisible("Sample Dataset").click();
+      cy.findByTextEnsureVisible("Sample Database").click();
       cy.findByText("Learn about our data");
     });
 
@@ -142,6 +154,7 @@ const mockSyncingDatabase = () => {
           id: sampleDatabase.id + 1,
           name: "H2",
           creator_id: user.id,
+          created_at: "2015-01-01T20:10:30.200",
           is_sample: false,
           initial_sync_status: "incomplete",
         };

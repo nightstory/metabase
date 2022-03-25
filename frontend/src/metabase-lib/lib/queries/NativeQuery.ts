@@ -1,5 +1,7 @@
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-nocheck
+import { t } from "ttag";
+
 import Database from "metabase-lib/lib/metadata/Database";
 import Table from "metabase-lib/lib/metadata/Table";
 import { countLines } from "metabase/lib/string";
@@ -14,12 +16,18 @@ import { chain, assoc, getIn, assocIn, updateIn } from "icepick";
 import _ from "underscore";
 import Question from "metabase-lib/lib/Question";
 import { DatasetQuery, NativeDatasetQuery } from "metabase-types/types/Card";
-import { TemplateTags, TemplateTag } from "metabase-types/types/Query";
+import {
+  DependentMetadataItem,
+  TemplateTags,
+  TemplateTag,
+} from "metabase-types/types/Query";
 import { DatabaseEngine, DatabaseId } from "metabase-types/types/Database";
 import AtomicQuery from "metabase-lib/lib/queries/AtomicQuery";
 import Dimension, { TemplateTagDimension, FieldDimension } from "../Dimension";
 import Variable, { TemplateTagVariable } from "../Variable";
 import DimensionOptions from "../DimensionOptions";
+import { ValidationError } from "../ValidationError";
+
 type DimensionFilter = (dimension: Dimension) => boolean;
 type VariableFilter = (variable: Variable) => boolean;
 export const NATIVE_QUERY_TEMPLATE: NativeDatasetQuery = {
@@ -79,10 +87,10 @@ export default class NativeQuery extends AtomicQuery {
   }
 
   canRun() {
-    return (
+    return Boolean(
       this.hasData() &&
-      this.queryText().length > 0 &&
-      this.allTemplateTagsAreValid()
+        this.queryText().length > 0 &&
+        this.allTemplateTagsAreValid(),
     );
   }
 
@@ -127,6 +135,12 @@ export default class NativeQuery extends AtomicQuery {
   readOnly() {
     const database = this.database();
     return !database || database.native_permissions !== "write";
+  }
+
+  // This basically just mirrors StructuredQueries `isEditable` method,
+  // so there is no need to do `isStructured ? isEditable() : readOnly()`
+  isEditable() {
+    return !this.readOnly();
   }
 
   /* Methods unique to this query type */
@@ -275,19 +289,33 @@ export default class NativeQuery extends AtomicQuery {
     return getIn(this.datasetQuery(), ["native", "template-tags"]) || {};
   }
 
+  validate() {
+    const tagErrors = this.validateTemplateTags();
+    return tagErrors;
+  }
+
+  validateTemplateTags() {
+    return this.templateTags()
+      .map(tag => {
+        const dimension = new TemplateTagDimension(
+          tag.name,
+          this.metadata(),
+          this,
+        );
+        if (!dimension) {
+          return new ValidationError(t`Invalid template tag: ${tag.name}`);
+        }
+
+        return dimension.validateTemplateTag();
+      })
+      .filter(
+        (maybeError): maybeError is ValidationError => maybeError != null,
+      );
+  }
+
   allTemplateTagsAreValid() {
-    return this.templateTags().every(t => {
-      if (["text", "number", "date", "card", "snippet"].includes(t.type)) {
-        return true;
-      }
-
-      const isDimensionType = t.type === "dimension";
-      const hasDefinedWidgetType =
-        t["widget-type"] && t["widget-type"] !== "none";
-      const hasDefinedDimension = t.dimension != null;
-
-      return isDimensionType && hasDefinedWidgetType && hasDefinedDimension;
-    });
+    const tagErrors = this.validateTemplateTags();
+    return tagErrors.length === 0;
   }
 
   setTemplateTag(name, tag) {
@@ -481,7 +509,7 @@ export default class NativeQuery extends AtomicQuery {
     return {};
   }
 
-  dependentMetadata() {
+  dependentMetadata(): DependentMetadataItem[] {
     const templateTags = this.templateTags();
     return templateTags
       .filter(

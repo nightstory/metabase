@@ -187,11 +187,11 @@
     (normalize-tokens ag-clause :ignore-path)))
 
 (defn- normalize-expressions-tokens
-  "For expressions, we don't want to normalize the name of the expression; keep that as is, but make it a keyword;
+  "For expressions, we don't want to normalize the name of the expression; keep that as is, and make it a string;
    normalize the definitions as normal."
   [expressions-clause]
   (into {} (for [[expression-name definition] expressions-clause]
-             [(keyword expression-name)
+             [(mbql.u/qualified-name expression-name)
               (normalize-tokens definition :ignore-path)])))
 
 (defn- normalize-order-by-tokens
@@ -222,13 +222,21 @@
 (defn- normalize-template-tag-definition
   "For a template tag definition, normalize all the keys appropriately."
   [tag-definition]
-  (into
-   {}
-   (map (fn [[k v]]
-          (let [k            (maybe-normalize-token k)
-                transform-fn (template-tag-definition-key->transform-fn k)]
-            [k (transform-fn v)])))
-   tag-definition))
+  (let [tag-def (into
+                 {}
+                 (map (fn [[k v]]
+                        (let [k            (maybe-normalize-token k)
+                              transform-fn (template-tag-definition-key->transform-fn k)]
+                          [k (transform-fn v)])))
+                 tag-definition)]
+    ;; `:widget-type` is a required key for Field Filter (dimension) template tags -- see
+    ;; [[metabase.mbql.schema/TemplateTag:FieldFilter]] -- but prior to v42 it wasn't usually included by the
+    ;; frontend. See #20643. If it's not present, just add in `:category` which will make things work they way they
+    ;; did in the past.
+    (cond-> tag-def
+      (and (= (:type tag-def) :dimension)
+           (not (:widget-type tag-def)))
+      (assoc :widget-type :category))))
 
 (defn- normalize-template-tags
   "Normalize native-query template tags. Like `expressions` we want to preserve the original name rather than normalize
@@ -392,7 +400,7 @@
   (canonicalize-mbql-clause (wrap-implicit-field-id clause)))
 
 (defmethod canonicalize-mbql-clause :field
-  [[_ id-or-name opts :as clause]]
+  [[_ id-or-name opts]]
   (if (is-clause? :field id-or-name)
     (let [[_ nested-id-or-name nested-opts] id-or-name]
       (canonicalize-mbql-clause [:field nested-id-or-name (not-empty (merge nested-opts opts))]))
@@ -703,7 +711,7 @@
       native          (update :native canonicalize-native-query)
       true            canonicalize-mbql-clauses)
     (catch #?(:clj Throwable :cljs js/Error) e
-      (throw (ex-info (i18n/tru "Error canonicalizing query")
+      (throw (ex-info (i18n/tru "Error canonicalizing query: {0}" (ex-message e))
                       {:query query}
                       e)))))
 
@@ -822,7 +830,7 @@
       (try
         (normalize* query)
         (catch #?(:clj Throwable :cljs js/Error) e
-          (throw (ex-info (i18n/tru "Error normalizing query")
+          (throw (ex-info (i18n/tru "Error normalizing query: {0}" (ex-message e))
                           {:query query}
                           e)))))))
 

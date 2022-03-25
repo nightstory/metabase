@@ -1,7 +1,6 @@
 (ns metabase.models.database
   (:require [cheshire.generate :refer [add-encoder encode-map]]
             [clojure.tools.logging :as log]
-            [java-time :as t]
             [medley.core :as m]
             [metabase.api.common :refer [*current-user*]]
             [metabase.db.util :as mdb.u]
@@ -45,8 +44,10 @@
 
 (defn- post-insert [database]
   (u/prog1 database
-    ;; add this database to the All Users permissions groups
-    (perms/grant-full-db-permissions! (perm-group/all-users) database)
+    ;; add this database to the All Users permissions group
+    (perms/grant-full-data-permissions! (perm-group/all-users) database)
+    ;; give full download perms for this database to the All Users permissions group
+    (perms/grant-full-download-permissions! (perm-group/all-users) database)
     ;; schedule the Database sync & analyze tasks
     (schedule-tasks! database)))
 
@@ -82,7 +83,7 @@
                        id))
         (db/delete! Secret :id secret-id)))))
 
-(defn- pre-delete [{id :id, driver :engine, details :details :as database}]
+(defn- pre-delete [{id :id, driver :engine, :as database}]
   (unschedule-tasks! database)
   (db/execute! {:delete-from (db/resolve-model 'Permissions)
                 :where       [:or
@@ -110,75 +111,79 @@
         ;; but for now, we should simply look for the value
         secret-map (secret/db-details-prop->secret-map details conn-prop-nm)
         value      (:value secret-map)
-        source     (:source secret-map)]                     ; set the :source due to the -path suffix (see above)
+        src        (:source secret-map)] ; set the :source due to the -path suffix (see above)]
     (if (nil? value) ;; secret value for this conn prop was not changed
       details
-      (let [{:keys [id creator_id created_at]} (secret/upsert-secret-value!
-                                                 (id-kw details)
-                                                 new-name
-                                                 kind
-                                                 source
-                                                 value)]
-        ;; remove the -value keyword (since in the persisted details blob, we only ever want to store the -id)
+      (let [{:keys [id] :as secret*} (secret/upsert-secret-value!
+                                       (id-kw details)
+                                       new-name
+                                       kind
+                                       src
+                                       value)]
         (-> details
-          (dissoc value-kw (sub-prop "-path"))
-          (assoc id-kw id)
-          (assoc (sub-prop "-source") source) ; TODO: figure out why this is needed
-          (assoc (sub-prop "-creator-id") creator_id)
-          (assoc (sub-prop "-created-at") (t/format :iso-offset-date-time created_at)))))))
+            ;; remove the -value keyword (since in the persisted details blob, we only ever want to store the -id),
+            ;; but the value may be re-added by expand-inferred-secret-values below (if appropriate)
+            (dissoc value-kw (sub-prop "-path"))
+            (assoc id-kw id)
+            (secret/expand-inferred-secret-values conn-prop-nm conn-prop secret*))))))
 
 (defn- handle-secrets-changes [{:keys [details] :as database}]
-  (let [conn-props-fn (get-method driver/connection-properties (driver.u/database->driver database))]
-    (cond (nil? conn-props-fn)
-          database ; no connection-properties multimethod defined; can't check secret types so do nothing
-
-          details ; we have details populated in this Database instance, so handle them
-          (let [conn-props            (conn-props-fn (driver.u/database->driver database))
-                conn-secrets-by-name  (secret/conn-props->secret-props-by-name conn-props)
-                updated-details       (reduce-kv (partial handle-db-details-secret-prop! database)
-                                                 details
-                                                 conn-secrets-by-name)]
-           (assoc database :details updated-details))
-
-          :else ; no details populated; do nothing
-          database)))
+  (if (map? details)
+    (let [updated-details (secret/reduce-over-details-secret-values
+                            (driver.u/database->driver database)
+                            details
+                            (partial handle-db-details-secret-prop! database))]
+      (assoc database :details updated-details))
+    database))
 
 (defn- pre-update
-  [{new-metadata-schedule :metadata_sync_schedule, new-fieldvalues-schedule :cache_field_values_schedule, :as database}]
-  (u/prog1 (handle-secrets-changes database)
-    ;; TODO - this logic would make more sense in post-update if such a method existed
-    ;; if the sync operation schedules have changed, we need to reschedule this DB
-    (when (or new-metadata-schedule new-fieldvalues-schedule)
-      (let [{old-metadata-schedule    :metadata_sync_schedule
-             old-fieldvalues-schedule :cache_field_values_schedule
-             existing-engine          :engine
-             existing-name            :name} (db/select-one [Database
-                                                             :metadata_sync_schedule
-                                                             :cache_field_values_schedule
-                                                             :engine
-                                                             :name]
-                                                            :id (u/the-id database))
-            ;; if one of the schedules wasn't passed continue using the old one
-            new-metadata-schedule            (or new-metadata-schedule old-metadata-schedule)
-            new-fieldvalues-schedule         (or new-fieldvalues-schedule old-fieldvalues-schedule)]
-        (when-not (= [new-metadata-schedule new-fieldvalues-schedule]
-                     [old-metadata-schedule old-fieldvalues-schedule])
-          (log/info
-           (trs "{0} Database ''{1}'' sync/analyze schedules have changed!" existing-engine existing-name)
-           "\n"
-           (trs "Sync metadata was: ''{0}'' is now: ''{1}''" old-metadata-schedule new-metadata-schedule)
-           "\n"
-           (trs "Cache FieldValues was: ''{0}'', is now: ''{1}''" old-fieldvalues-schedule new-fieldvalues-schedule))
-          ;; reschedule the database. Make sure we're passing back the old schedule if one of the two wasn't supplied
-          (schedule-tasks!
-           (assoc database
-             :metadata_sync_schedule      new-metadata-schedule
-             :cache_field_values_schedule new-fieldvalues-schedule)))))))
+  [{new-metadata-schedule    :metadata_sync_schedule,
+    new-fieldvalues-schedule :cache_field_values_schedule,
+    new-engine               :engine
+    :as                      database}]
+  (let [{is-sample?               :is_sample
+         old-metadata-schedule    :metadata_sync_schedule
+         old-fieldvalues-schedule :cache_field_values_schedule
+         existing-engine          :engine
+         existing-name            :name} (db/select-one [Database
+                                                         :metadata_sync_schedule
+                                                         :cache_field_values_schedule
+                                                         :engine
+                                                         :name
+                                                         :is_sample] :id (u/the-id database))
+        new-engine                       (some-> new-engine keyword)]
+    (if (and is-sample?
+             new-engine
+             (not= new-engine existing-engine))
+      (throw (ex-info (trs "The engine on a sample database cannot be changed.")
+                      {:status-code     400
+                       :existing-engine existing-engine
+                       :new-engine      new-engine}))
+      (u/prog1 (handle-secrets-changes database)
+        ;; TODO - this logic would make more sense in post-update if such a method existed
+        ;; if the sync operation schedules have changed, we need to reschedule this DB
+        (when (or new-metadata-schedule new-fieldvalues-schedule)
+          ;; if one of the schedules wasn't passed continue using the old one
+          (let [new-metadata-schedule    (or new-metadata-schedule old-metadata-schedule)
+                new-fieldvalues-schedule (or new-fieldvalues-schedule old-fieldvalues-schedule)]
+            (when (not= [new-metadata-schedule new-fieldvalues-schedule]
+                        [old-metadata-schedule old-fieldvalues-schedule])
+              (log/info
+               (trs "{0} Database ''{1}'' sync/analyze schedules have changed!" existing-engine existing-name)
+               "\n"
+               (trs "Sync metadata was: ''{0}'' is now: ''{1}''" old-metadata-schedule new-metadata-schedule)
+               "\n"
+               (trs "Cache FieldValues was: ''{0}'', is now: ''{1}''" old-fieldvalues-schedule new-fieldvalues-schedule))
+              ;; reschedule the database. Make sure we're passing back the old schedule if one of the two wasn't supplied
+              (schedule-tasks!
+               (assoc database
+                      :metadata_sync_schedule      new-metadata-schedule
+                      :cache_field_values_schedule new-fieldvalues-schedule)))))))))
 
 (defn- pre-insert [database]
   (-> database
-   handle-secrets-changes
-   (assoc :initial_sync_status "incomplete")))
+      handle-secrets-changes
+      (assoc :initial_sync_status "incomplete")))
 
 (defn- perms-objects-set [database _]
   #{(perms/data-perms-path (u/the-id database))})

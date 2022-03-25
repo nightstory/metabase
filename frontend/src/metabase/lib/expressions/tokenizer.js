@@ -209,6 +209,9 @@ export function tokenize(expression) {
             case "v":
               value += "\x0b";
               break;
+            case '"':
+              value += '"';
+              break;
             default:
               value += seq;
               break;
@@ -322,7 +325,8 @@ export function tokenize(expression) {
         if (error) {
           const message = error;
           const pos = t.start;
-          errors.push({ message, pos });
+          const len = t.end - t.start;
+          errors.push({ message, pos, len });
         }
       } else {
         const char = source[index];
@@ -330,6 +334,7 @@ export function tokenize(expression) {
           break;
         }
         const pos = index;
+        const len = 1;
         if (char === "]") {
           const prev = tokens[tokens.length - 1];
           const ref =
@@ -339,10 +344,10 @@ export function tokenize(expression) {
           const message = ref
             ? t`Missing an opening bracket for ${ref}`
             : t`Missing an opening bracket`;
-          errors.push({ message, pos });
+          errors.push({ message, pos, len });
         } else {
           const message = t`Invalid character: ${char}`;
-          errors.push({ message, pos });
+          errors.push({ message, pos, len });
         }
         ++index;
       }

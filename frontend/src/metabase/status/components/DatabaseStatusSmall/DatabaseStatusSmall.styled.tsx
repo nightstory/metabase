@@ -1,8 +1,8 @@
-import styled from "styled-components";
+import styled from "@emotion/styled";
 import { color, lighten } from "metabase/lib/colors";
 import Icon from "metabase/components/Icon";
 import LoadingSpinner from "metabase/components/LoadingSpinner";
-import { InitialSyncStatus } from "../../types";
+import { InitialSyncStatus } from "metabase-types/api";
 
 interface Props {
   status: InitialSyncStatus;

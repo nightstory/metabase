@@ -1,10 +1,10 @@
 import { assocIn } from "icepick";
 
 import {
-  SAMPLE_DATASET,
+  SAMPLE_DATABASE,
   PRODUCTS,
   MONGO_DATABASE,
-} from "__support__/sample_dataset_fixture";
+} from "__support__/sample_database_fixture";
 
 import NativeQuery from "metabase-lib/lib/queries/NativeQuery";
 
@@ -21,14 +21,14 @@ function makeDatasetQuery(queryText, templateTags, databaseId) {
 
 function makeQuery(query, templateTags) {
   return new NativeQuery(
-    SAMPLE_DATASET.question(),
-    makeDatasetQuery(query, templateTags, SAMPLE_DATASET.id),
+    SAMPLE_DATABASE.question(),
+    makeDatasetQuery(query, templateTags, SAMPLE_DATABASE.id),
   );
 }
 
 function makeMongoQuery(query, templateTags) {
   return new NativeQuery(
-    SAMPLE_DATASET.question(),
+    SAMPLE_DATABASE.question(),
     makeDatasetQuery(query, templateTags, MONGO_DATABASE.id),
   );
 }
@@ -47,12 +47,12 @@ describe("NativeQuery", () => {
     });
     describe("databaseId()", () => {
       it("returns the Database ID of the wrapped query ", () => {
-        expect(query.databaseId()).toBe(SAMPLE_DATASET.id);
+        expect(query.databaseId()).toBe(SAMPLE_DATABASE.id);
       });
     });
     describe("database()", () => {
       it("returns a dictionary with the underlying database of the wrapped query", () => {
-        expect(query.database().id).toBe(SAMPLE_DATASET.id);
+        expect(query.database().id).toBe(SAMPLE_DATABASE.id);
       });
     });
 
@@ -127,9 +127,9 @@ describe("NativeQuery", () => {
   describe("clean", () => {
     it("should add template-tags: {} if there are none", () => {
       const cleanedQuery = native =>
-        new NativeQuery(SAMPLE_DATASET.question(), {
+        new NativeQuery(SAMPLE_DATABASE.question(), {
           type: "native",
-          database: SAMPLE_DATASET.id,
+          database: SAMPLE_DATABASE.id,
           native,
         })
           .clean()
@@ -193,49 +193,6 @@ describe("NativeQuery", () => {
         expect(q.canRun()).toBe(true);
       });
 
-      it("bad type", () => {
-        q = q.setDatasetQuery(
-          assocIn(
-            q.datasetQuery(),
-            ["native", "template-tags", "foo", "type"],
-            "type-that-does-not-exist",
-          ),
-        );
-        expect(q.canRun()).toBe(false);
-
-        q = q.setDatasetQuery(
-          assocIn(
-            q.datasetQuery(),
-            ["native", "template-tags", "foo", "type"],
-            "text",
-          ),
-        );
-        expect(q.canRun()).toBe(true);
-      });
-
-      it("dimension type without a widget-type", () => {
-        q = q.setDatasetQuery(
-          assocIn(q.datasetQuery(), ["native", "template-tags", "foo"], {
-            type: "dimension",
-            dimension: ["field", 123, null],
-          }),
-        );
-
-        expect(q.canRun()).toBe(false);
-      });
-
-      it("dimension type with a widget-type of none", () => {
-        q = q.setDatasetQuery(
-          assocIn(q.datasetQuery(), ["native", "template-tags", "foo"], {
-            type: "dimension",
-            "widget-type": "none",
-            dimension: ["field", 123, null],
-          }),
-        );
-
-        expect(q.canRun()).toBe(false);
-      });
-
       it("dimension type without a dimension", () => {
         q = q.setDatasetQuery(
           assocIn(q.datasetQuery(), ["native", "template-tags", "foo"], {
@@ -248,6 +205,7 @@ describe("NativeQuery", () => {
 
         q = q.setDatasetQuery(
           assocIn(q.datasetQuery(), ["native", "template-tags", "foo"], {
+            name: "foo",
             type: "dimension",
             "widget-type": "category",
             dimension: ["field", 123, null],

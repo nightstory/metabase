@@ -1,4 +1,4 @@
-import styled from "styled-components";
+import styled from "@emotion/styled";
 import { color } from "metabase/lib/colors";
 import Icon from "metabase/components/Icon";
 
@@ -33,7 +33,7 @@ export const ItemHeader = styled.div`
 `;
 
 export const Timestamp = styled.time`
-  color: ${color("text-medium")}
+  color: ${color("text-medium")};
   font-size: 0.875em;
   padding-bottom: 0.5rem;
 `;

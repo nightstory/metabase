@@ -1,13 +1,13 @@
 import cx from "classnames";
 import PropTypes from "prop-types";
 import React, { Component, forwardRef } from "react";
-import styled from "styled-components";
+import styled from "@emotion/styled";
 import { color, hover, space } from "styled-system";
 import Tooltip from "metabase/components/Tooltip";
 import { loadIcon } from "metabase/icon_paths";
 import { color as c } from "metabase/lib/colors";
 import { stripLayoutProps } from "metabase/lib/utils";
-import { forwardRefToInnerRef } from "metabase/styled-components/utils";
+import { shouldForwardNonTransientProp } from "metabase/lib/styling/emotion";
 
 const MISSING_ICON_NAME = "unknown";
 
@@ -29,7 +29,7 @@ export const IconWrapper = styled.div<IconWrapperProps>`
   // special cases for certain icons
   // Icon-share has a taller viewbox than most so to optically center
   // the icon we need to translate it upwards
-  "> .icon.icon-share": {
+  & > .icon.icon-share {
     transform: translateY(-2px);
   }
   ${hover};
@@ -57,22 +57,23 @@ export const iconPropTypes = {
   scale: stringOrNumberPropType,
   tooltip: PropTypes.string,
   className: PropTypes.string,
-  innerRef: PropTypes.any,
   onClick: PropTypes.func,
 };
 
-type IconProps = PropTypes.InferProps<typeof iconPropTypes>;
+export type IconProps = PropTypes.InferProps<typeof iconPropTypes> & {
+  forwardedRef?: any;
+};
 
 class BaseIcon extends Component<IconProps> {
   static propTypes = iconPropTypes;
 
   render() {
-    const { name, className, innerRef, ...rest } = this.props;
+    const { name, className, forwardedRef, ...rest } = this.props;
 
     const icon = loadIcon(name) || loadIcon(MISSING_ICON_NAME);
     if (!icon) {
       console.warn(`Icon "${name}" does not exist.`);
-      return <span ref={innerRef} />;
+      return <span ref={forwardedRef} />;
     }
 
     const props = {
@@ -96,12 +97,15 @@ class BaseIcon extends Component<IconProps> {
     }
     delete props.size, props.scale;
 
+    // avoid passing `uncheckedColor` to a svg tag
+    const { uncheckedColor, ...svgProps } = props;
+
     if (icon.img) {
       // avoid passing `role="img"` to an actual image file
       const { _role, ...rest } = props;
       return (
         <img
-          ref={innerRef}
+          ref={forwardedRef}
           src={icon.img}
           srcSet={`
           ${icon.img}    1x,
@@ -112,33 +116,41 @@ class BaseIcon extends Component<IconProps> {
       );
     } else if (icon.svg) {
       return (
-        <svg
-          {...props}
+        <StyledSVG
+          {...svgProps}
           dangerouslySetInnerHTML={{ __html: icon.svg }}
-          ref={innerRef}
+          ref={forwardedRef}
         />
       );
     } else if (icon.path) {
       return (
-        <svg {...props} ref={innerRef}>
+        <StyledSVG {...svgProps} ref={forwardedRef}>
           <path d={icon.path} />
-        </svg>
+        </StyledSVG>
       );
     } else {
       console.warn(`Icon "${name}" must have an img, svg, or path`);
-      return <span ref={innerRef} />;
+      return <span ref={forwardedRef} />;
     }
   }
 }
 
-const BaseIconWithRef = forwardRefToInnerRef<IconProps>(BaseIcon);
+const StyledSVG = styled("svg", {
+  shouldForwardProp: shouldForwardNonTransientProp,
+})``;
 
-const StyledIcon = forwardRefToInnerRef<IconProps>(styled(BaseIconWithRef)`
+const BaseIconWithRef = forwardRef<HTMLElement, IconProps>(
+  function BaseIconWithRef(props, ref) {
+    return <BaseIcon {...props} forwardedRef={ref} />;
+  },
+);
+
+const StyledIcon = styled(BaseIconWithRef)`
   ${space}
   ${color}
   ${hover}
   flex-shrink: 0
-`);
+`;
 
 const Icon = forwardRef(function Icon(
   { tooltip, ...props }: IconProps,
@@ -149,7 +161,7 @@ const Icon = forwardRef(function Icon(
       <StyledIcon {...props} />
     </Tooltip>
   ) : (
-    <StyledIcon ref={ref} {...props} />
+    <StyledIcon ref={ref as any} {...props} />
   );
 });
 

@@ -1,5 +1,6 @@
 (ns metabase.query-processor.streaming.xlsx-test
   (:require [cheshire.generate :as generate]
+            [clojure.java.io :as io]
             [clojure.test :refer :all]
             [dk.ative.docjure.spreadsheet :as spreadsheet]
             [metabase.query-processor.streaming.interface :as i]
@@ -8,6 +9,7 @@
             [metabase.test :as mt])
   (:import com.fasterxml.jackson.core.JsonGenerator
            [java.io BufferedInputStream BufferedOutputStream ByteArrayInputStream ByteArrayOutputStream]))
+
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
 ;;; |                                     Format string generation unit tests                                        |
@@ -18,7 +20,8 @@
    (format-string format-settings nil))
 
   ([format-settings semantic-type]
-   (let [format-strings (@#'xlsx/format-settings->format-strings format-settings semantic-type)]
+   (let [format-strings (@#'xlsx/format-settings->format-strings format-settings {:semantic_type  semantic-type
+                                                                                  :effective_type :type/Temporal})]
      ;; If only one format string is returned (for datetimes) or both format strings
      ;; are equal, just return a single value to make tests more readable.
      (cond
@@ -239,8 +242,9 @@
 (defn parse-cell-content
   "Parses an XLSX sheet and returns the raw data in each row"
   [sheet]
-  (for [row (spreadsheet/into-seq sheet)]
-    (map spreadsheet/read-cell row)))
+  (mapv (fn [row]
+          (mapv spreadsheet/read-cell row))
+        (spreadsheet/into-seq sheet)))
 
 (defn parse-xlsx-results
   "Given a byte array representing an XLSX document, parses the query result sheet using the provided `parse-fn`"
@@ -291,7 +295,7 @@
                                 [[1.23]]
                                 parse-format-strings))))
     (is (= ["yyyy.m.d, h:mm:ss am/pm"]
-           (second (xlsx-export [{:id 0, :name "Col"}]
+           (second (xlsx-export [{:id 0, :name "Col", :effective_type :type/Temporal}]
                                 {::mb.viz/column-settings {{::mb.viz/field-id 0}
                                                            {::mb.viz/date-style "YYYY/M/D",
                                                             ::mb.viz/date-separator ".",
@@ -484,3 +488,32 @@
                                            [[(apply str (repeat 256 "0"))]]
                                            parse-column-width))]
       (is (= 65280 col-width)))))
+
+(deftest poi-tempfiles-test
+  (testing "POI temporary files are cleaned up if output stream is closed before export completes (#19480)"
+    (let [poifiles-directory      (io/file (str (System/getProperty "java.io.tmpdir") "/poifiles"))
+          expected-poifiles-count (count (file-seq poifiles-directory))
+          bos                (ByteArrayOutputStream.)
+          os                 (BufferedOutputStream. bos)
+          results-writer     (i/streaming-results-writer :xlsx os)]
+      (.close os)
+      (i/begin! results-writer {:data {:ordered-cols []}} {})
+      (i/finish! results-writer {:row_count 0})
+      ;; No additional files should exist in the temp directory
+      (is (= expected-poifiles-count (count (file-seq poifiles-directory)))))))
+
+(deftest dont-format-non-temporal-columns-as-temporal-columns-test
+  (testing "Don't format columns with temporal semantic type as datetime unless they're actually datetimes (#18729)"
+    (mt/dataset sample-dataset
+      (is (= [["CREATED_AT"]
+              [1.0]
+              [2.0]]
+             (xlsx-export [{:id             0
+                            :semantic_type  :type/CreationTimestamp
+                            :unit           :month-of-year
+                            :name           "CREATED_AT"
+                            :effective_type :type/Integer
+                            :base_type      :type/Integer}]
+                          {}
+                          [[1]
+                           [2]]))))))

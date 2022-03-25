@@ -2,8 +2,9 @@ import {
   restore,
   visualize,
   changeBinningForDimension,
+  summarize,
 } from "__support__/e2e/cypress";
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
 const {
   ORDERS_ID,
@@ -12,8 +13,13 @@ const {
   PEOPLE,
   PRODUCTS_ID,
   PRODUCTS,
-} = SAMPLE_DATASET;
+} = SAMPLE_DATABASE;
 
+/**
+ * The list of issues this spec covers:
+ *  - metabase#15446
+ *  -
+ */
 describe("scenarios > binning > from a saved QB question with explicit joins", () => {
   beforeEach(() => {
     restore();
@@ -64,8 +70,8 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
       cy.findByText("Simple question").click();
       cy.findByText("Saved Questions").click();
       cy.findByText("QB Binning").click();
-      cy.findByText("Summarize").click();
       cy.wait("@dataset");
+      summarize();
     });
 
     it("should work for time series", () => {
@@ -82,17 +88,16 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
       });
 
       // Make sure time series footer works as well
-      cy.get(".AdminSelect-content")
+      cy.findAllByTestId("select-button-content")
         .contains("Year")
         .click();
       cy.findByText("Quarter").click();
 
       cy.wait("@dataset");
-      cy.get(".axis.x").within(() => {
-        cy.findByText("Q1 - 1960");
-        cy.findByText("Q1 - 1965");
-        cy.findByText("Q1 - 2000");
-      });
+      cy.get(".axis.x")
+        .should("contain", "Q1 - 1960")
+        .and("contain", "Q1 - 1965")
+        .and("contain", "Q1 - 2000");
     });
 
     it("should work for number", () => {
@@ -129,7 +134,6 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
       cy.findByText("Saved Questions").click();
       cy.findByText("QB Binning").click();
 
-      cy.findByText("Summarize").click();
       cy.findByText("Pick the metric you want to see").click();
       cy.findByText("Count of rows").click();
       cy.findByText("Pick a column to group by").click();
@@ -150,17 +154,16 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
       });
 
       // Make sure time series footer works as well
-      cy.get(".AdminSelect-content")
+      cy.findAllByTestId("select-button-content")
         .contains("Year")
         .click();
       cy.findByText("Quarter").click();
 
       cy.wait("@dataset");
-      cy.get(".axis.x").within(() => {
-        cy.findByText("Q1 - 1960");
-        cy.findByText("Q1 - 1965");
-        cy.findByText("Q1 - 2000");
-      });
+      cy.get(".axis.x")
+        .should("contain", "Q1 - 1960")
+        .and("contain", "Q1 - 1965")
+        .and("contain", "Q1 - 2000");
     });
 
     it("should work for number", () => {
@@ -209,13 +212,15 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
 
       assertOnXYAxisLabels({ xLabel: "People → Birth Date", yLabel: "Count" });
 
-      cy.findByText("January, 1960");
-      cy.findByText("January, 1965");
+      cy.get(".axis.x", { timeout: 1000 })
+        .should("contain", "January, 1960")
+        .and("contain", "January, 1965")
+        .and("contain", "January, 2000");
 
       cy.get("circle");
 
       // Make sure time series footer works as well
-      cy.get(".AdminSelect-content")
+      cy.findAllByTestId("select-button-content")
         .contains("Month")
         .click();
       cy.findByText("Quarter").click();
@@ -223,8 +228,10 @@ describe("scenarios > binning > from a saved QB question with explicit joins", (
       // Reproduces metabase#16693
       cy.findByText("Count by People → Birth Date: Quarter");
 
-      cy.findByText("Q1 - 1960");
-      cy.findByText("Q1 - 1965");
+      cy.get(".axis.x")
+        .should("contain", "Q1 - 1960")
+        .and("contain", "Q1 - 1965")
+        .and("contain", "Q1 - 2000");
     });
 
     it("should work for number", () => {

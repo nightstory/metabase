@@ -3,6 +3,7 @@ import { createSelector } from "reselect";
 import MetabaseSettings from "metabase/lib/settings";
 import { t } from "ttag";
 import CustomGeoJSONWidget from "./components/widgets/CustomGeoJSONWidget";
+import SettingsLicense from "./components/SettingsLicense";
 import SiteUrlWidget from "./components/widgets/SiteUrlWidget";
 import HttpsOnlyWidget from "./components/widgets/HttpsOnlyWidget";
 import { EmbeddingCustomizationInfo } from "./components/widgets/EmbeddingCustomizationInfo";
@@ -15,13 +16,14 @@ import {
 import SecretKeyWidget from "./components/widgets/SecretKeyWidget";
 import EmbeddingLegalese from "./components/widgets/EmbeddingLegalese";
 import FormattingWidget from "./components/widgets/FormattingWidget";
+import { PremiumEmbeddingLinkWidget } from "./components/widgets/PremiumEmbeddingLinkWidget";
 import SettingsUpdatesForm from "./components/SettingsUpdatesForm/SettingsUpdatesForm";
 import SettingsEmailForm from "./components/SettingsEmailForm";
 import SettingsSetupList from "./components/SettingsSetupList";
-import SettingsSlackForm from "./components/SettingsSlackForm";
+import SlackSettings from "./slack/containers/SlackSettings";
 import SettingsTelegramForm from "./components/SettingsTelegramForm";
 import SettingsDashboardSubscriptionWebhookForm from "./components/SettingsDashboardSubscriptionWebhookForm";
-import { trackTrackingPermissionChanged } from "./tracking";
+import { trackTrackingPermissionChanged } from "./analytics";
 
 import { UtilApi } from "metabase/services";
 import { PLUGIN_ADMIN_SETTINGS_UPDATES } from "metabase/plugins";
@@ -188,27 +190,8 @@ const SECTIONS = updateSectionsWithPlugins({
   slack: {
     name: "Slack",
     order: 5,
-    component: SettingsSlackForm,
-    settings: [
-      {
-        key: "slack-token",
-        display_name: t`Slack API Token`,
-        description: "",
-        placeholder: t`Enter the token you received from Slack`,
-        type: "string",
-        required: false,
-        autoFocus: true,
-      },
-      {
-        key: "metabot-enabled",
-        display_name: "MetaBot",
-        type: "boolean",
-        // TODO: why do we have "defaultValue" here in addition to the "default" specified by the backend?
-        defaultValue: false,
-        required: true,
-        autoFocus: false,
-      },
-    ],
+    component: SlackSettings,
+    settings: [],
   },
   "ds-webhook": {
     name: "DS Webhook",
@@ -400,11 +383,22 @@ const SECTIONS = updateSectionsWithPlugins({
         widget: EmbeddedQuestionListing,
         getHidden: settings => !settings["enable-embedding"],
       },
+      {
+        widget: PremiumEmbeddingLinkWidget,
+        getHidden: settings =>
+          !settings["enable-embedding"] || MetabaseSettings.isEnterprise(),
+      },
     ],
+  },
+  license: {
+    name: t`License`,
+    order: 13,
+    component: SettingsLicense,
+    settings: [],
   },
   caching: {
     name: t`Caching`,
-    order: 13,
+    order: 14,
     settings: [
       {
         key: "enable-query-caching",

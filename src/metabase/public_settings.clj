@@ -6,8 +6,6 @@
             [clojure.tools.logging :as log]
             [java-time :as t]
             [metabase.config :as config]
-            [metabase.driver :as driver]
-            [metabase.driver.util :as driver.u]
             [metabase.models.setting :as setting :refer [defsetting]]
             [metabase.plugins.classloader :as classloader]
             [metabase.public-settings.premium-features :as premium-features]
@@ -24,8 +22,8 @@
   (boolean (setting/get :google-auth-client-id)))
 
 (defn- ldap-configured? []
-  (do (classloader/require 'metabase.integrations.ldap)
-      ((resolve 'metabase.integrations.ldap/ldap-configured?))))
+  (classloader/require 'metabase.integrations.ldap)
+  ((resolve 'metabase.integrations.ldap/ldap-configured?)))
 
 (defn- ee-sso-configured? []
   (u/ignore-exceptions
@@ -83,6 +81,17 @@
   :visibility :internal
   :setter     :none
   ;; magic getter will either fetch value from DB, or if no value exists, set the value to a random UUID.
+  :type       ::uuid-nonce)
+
+(defsetting site-uuid-for-premium-features-token-checks
+  "In the interest of respecting everyone's privacy and keeping things as anonymous as possible we have a *different*
+  site-wide UUID that we use for the EE/premium features token feature check API calls. It works in fundamentally the
+  same way as [[site-uuid]] but should only be used by the token check logic
+  in [[metabase.public-settings.premium-features/fetch-token-status]]. (`site-uuid` is used for anonymous
+  analytics/stats and if we sent it along with the premium features token check API request it would no longer be
+  anonymous.)"
+  :visibility :internal
+  :setter     :none
   :type       ::uuid-nonce)
 
 (defn- normalize-site-url [^String s]
@@ -181,7 +190,7 @@
   :visibility :public)
 
 (defsetting enable-nested-queries
-  (deferred-tru "Allow using a saved question as the source for other queries?")
+  (deferred-tru "Allow using a saved question or Model as the source for other queries?")
   :type    :boolean
   :default true
   :visibility :authenticated)
@@ -236,8 +245,8 @@
   :type    :integer
   :default 10)
 
-(defsetting engine-deprecation-notice-version
-  (deferred-tru "Metabase version for which a notice about usage of a deprecated driver has been shown.")
+(defsetting deprecation-notice-version
+  (deferred-tru "Metabase version for which a notice about usage of deprecated features has been shown.")
   :visibility :admin)
 
 (defsetting application-name
@@ -272,7 +281,7 @@
   (deferred-tru "The url or image that you want to use as the favicon.")
   :visibility :public
   :type       :string
-  :default    "/app/assets/img/favicon.ico")
+  :default    "app/assets/img/favicon.ico")
 
 (defsetting enable-password-login
   (deferred-tru "Allow logging in by email and password.")
@@ -343,15 +352,6 @@
     (assoc object :public_uuid nil)
     object))
 
-(defn- short-timezone-name [timezone-id]
-  (let [^java.time.ZoneId zone (if (seq timezone-id)
-                                 (t/zone-id timezone-id)
-                                 (t/zone-id))]
-    (.getDisplayName
-     zone
-     java.time.format.TextStyle/SHORT
-     (java.util.Locale/getDefault))))
-
 (defsetting available-locales
   "Available i18n locales"
   :visibility :public
@@ -364,14 +364,8 @@
   :setter     :none
   :getter     (comp sort t/available-zone-ids))
 
-(defsetting engines
-  "Available database engines"
-  :visibility :public
-  :setter     :none
-  :getter     driver.u/available-drivers-info)
-
-(defsetting has-sample-dataset?
-  "Whether this instance has a Sample Dataset database"
+(defsetting has-sample-database?
+  "Whether this instance has a Sample Database database"
   :visibility :authenticated
   :setter     :none
   :getter     (fn [] (db/exists? 'Database, :is_sample true)))
@@ -387,12 +381,6 @@
   :type       :boolean
   :visibility :public
   :default    nil)
-
-(defsetting report-timezone-short
-  "Current report timezone abbreviation"
-  :visibility :public
-  :setter     :none
-  :getter     (fn [] (short-timezone-name (driver/report-timezone))))
 
 (defsetting version
   "Metabase's version info"
@@ -429,8 +417,12 @@
                 (setting/set-value-of-type! :boolean :redirect-all-requests-to-https new-value)))
 
 (defsetting start-of-week
-  (deferred-tru "This will affect things like grouping by week or filtering in GUI queries.
-  It won''t affect SQL queries.")
+  (str
+    (deferred-tru "This will affect things like grouping by week or filtering in GUI queries.")
+    " "
+    (deferred-tru "It won''t affect most SQL queries,")
+    " "
+    (deferred-tru " although it is used to set the WEEK_START session variable in Snowflake."))
   :visibility :public
   :type       :keyword
   :default    :sunday)
@@ -450,14 +442,13 @@
 (def ^:private fetch-cloud-gateway-ips-fn
   (memoize/ttl
    (fn []
-       (when (premium-features/is-hosted?)
-         (try
-           (-> (http/get (cloud-gateway-ips-url))
-               :body
-               (json/parse-string keyword)
-               :ip_addresses)
-           (catch Exception e
-             (log/error e (trs "Error fetching Metabase Cloud gateway IP addresses:"))))))
+     (try
+       (-> (http/get (cloud-gateway-ips-url))
+           :body
+           (json/parse-string keyword)
+           :ip_addresses)
+       (catch Exception e
+         (log/error e (trs "Error fetching Metabase Cloud gateway IP addresses:")))))
    :ttl/threshold (* 1000 60 60 24)))
 
 (defsetting cloud-gateway-ips
@@ -465,7 +456,9 @@
   :visibility :public
   :type       :json
   :setter     :none
-  :getter     fetch-cloud-gateway-ips-fn)
+  :getter     (fn []
+                (when (premium-features/is-hosted?)
+                  (fetch-cloud-gateway-ips-fn))))
 
 (defsetting show-database-syncing-modal
   (str (deferred-tru "Whether an introductory modal should be shown after the next database connection is added.")

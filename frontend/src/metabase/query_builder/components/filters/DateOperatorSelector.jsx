@@ -2,16 +2,15 @@
 import React, { Component } from "react";
 
 import _ from "underscore";
-import cx from "classnames";
 
-import Select, { Option } from "metabase/components/Select";
+import Select, { Option } from "metabase/core/components/Select";
 
 export default class DateOperatorSelector extends Component {
   render() {
     const { className, operator, operators, onOperatorChange } = this.props;
 
     return (
-      <div className={cx(className, "relative z3")} style={{ minWidth: 100 }}>
+      <div className={className} style={{ minWidth: 100 }}>
         <Select
           value={_.findWhere(operators, { name: operator })}
           onChange={e => onOperatorChange(e.target.value)}

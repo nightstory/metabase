@@ -3,7 +3,7 @@ import { t, jt } from "ttag";
 
 import MetabaseSettings from "metabase/lib/settings";
 import { getElevatedEngines } from "metabase/lib/engine";
-import ExternalLink from "metabase/components/ExternalLink";
+import ExternalLink from "metabase/core/components/ExternalLink";
 import { PLUGIN_CACHING } from "metabase/plugins";
 import getFieldsForBigQuery from "./big-query-fields";
 
@@ -36,7 +36,6 @@ const DATABASE_DETAIL_OVERRIDES = {
     description: (
       <div>
         <div>{getAuthCodeLink(engine, details)}</div>
-        <div>{getAuthCodeEnableAPILink(engine, details)}</div>
       </div>
     ),
   }),
@@ -159,19 +158,10 @@ const AUTH_URL_PREFIXES = {
     "https://accounts.google.com/o/oauth2/auth?redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=https://www.googleapis.com/auth/bigquery&client_id=",
   bigquery_with_drive:
     "https://accounts.google.com/o/oauth2/auth?redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=https://www.googleapis.com/auth/bigquery%20https://www.googleapis.com/auth/drive&client_id=",
-  googleanalytics:
-    "https://accounts.google.com/o/oauth2/auth?access_type=offline&redirect_uri=urn:ietf:wg:oauth:2.0:oob&response_type=code&scope=https://www.googleapis.com/auth/analytics.readonly&client_id=",
-};
-
-const ENABLE_API_PREFIXES = {
-  googleanalytics:
-    "https://console.developers.google.com/apis/api/analytics.googleapis.com/overview?project=",
 };
 
 const CREDENTIALS_URL_PREFIXES = {
   bigquery:
-    "https://console.developers.google.com/apis/credentials/oauthclient?project=",
-  googleanalytics:
     "https://console.developers.google.com/apis/credentials/oauthclient?project=",
 };
 
@@ -228,33 +218,6 @@ function getAuthCodeLink(engine, details) {
   }
 }
 
-function getAuthCodeEnableAPILink(engine, details) {
-  // for Google Analytics we need to show a link for people to go to the Console to enable the GA API
-  if (AUTH_URL_PREFIXES[engine] && details["client-id"]) {
-    // projectID is just the first numeric part of the client-id.
-    // e.g. client-id might be 123436115855-q8z42hilmjf8iplnnu49n7jbudmxxdf.apps.googleusercontent.com
-    // then project-id would be 123436115855
-    const projectID =
-      details["client-id"] && (details["client-id"].match(/^\d+/) || [])[0];
-    if (ENABLE_API_PREFIXES[engine] && projectID) {
-      // URL looks like https://console.developers.google.com/apis/api/analytics.googleapis.com/overview?project=12343611585
-      const enableAPIURL = concatTrimmed(
-        ENABLE_API_PREFIXES[engine],
-        projectID,
-      );
-
-      return (
-        <span>
-          {t`To use Metabase with this data you must enable API access in the Google Developers Console.`}{" "}
-          {jt`${(
-            <ExternalLink href={enableAPIURL}>{t`Click here`}</ExternalLink>
-          )} to go to the console if you haven't already done so.`}
-        </span>
-      );
-    }
-  }
-}
-
 function getDefaultValue(field) {
   return "default" in field ? field.default : null;
 }
@@ -296,6 +259,7 @@ function getEngineFormFields(engine, details, id) {
         readOnly: field.readOnly || false,
         helperText: field["helper-text"],
         visibleIf: field["visible-if"],
+        treatBeforePosting: field["treat-before-posting"],
         ...(overrides && overrides(engine, details, id)),
       };
     })

@@ -20,7 +20,7 @@
             [metabase.driver :as driver]
             [metabase.driver.sql-jdbc.sync :as sql-jdbc.sync]
             [metabase.driver.sql.query-processor :as sql.qp]
-            [metabase.driver.sql.query-processor-test :as sql.qp.test]
+            [metabase.driver.sql.query-processor-test-util :as sql.qp-test-util]
             [metabase.models.database :refer [Database]]
             [metabase.query-processor :as qp]
             [metabase.query-processor-test :as qp.test]
@@ -693,8 +693,7 @@
   ;; The exclusions here are databases that give incorrect answers when the JVM timezone doesn't match the databases
   ;; timezone (TIMEZONE FIXME)
   (testing "JVM timezone set to Pacific"
-    (mt/test-drivers (mt/normal-drivers-except #{:h2 :sqlserver :redshift :sparksql :mongo :bigquery
-                                                 :bigquery-cloud-sdk})
+    (mt/test-drivers (mt/normal-drivers-except #{:h2 :sqlserver :redshift :sparksql :mongo :bigquery-cloud-sdk})
       (is (= (cond
                (= :sqlite driver/*driver*)
                (results-by-week u.date/parse
@@ -858,7 +857,7 @@
                                  ;;
                                  ;; TODO -- make 'insert-rows-using-statements?` a multimethod so we don't need to
                                  ;; hardcode the whitelist here.
-                                 (not (#{:vertica :bigquery :bigquery-cloud-sdk} driver/*driver*)))
+                                 (not (#{:vertica :bigquery-cloud-sdk} driver/*driver*)))
                           (sql.qp/add-interval-honeysql-form driver/*driver*
                                                              (sql.qp/current-datetime-honeysql-form driver/*driver*)
                                                              (* i interval-seconds)
@@ -1035,7 +1034,8 @@
   (mt/test-drivers (mt/normal-drivers-except #{:snowflake})
     (testing "if datetime string is not yyyy-MM-dd no date bucketing should take place, and thus we should get no (exact) matches"
       (mt/dataset checkins:1-per-day
-        (is (= ;; Mongo returns empty row for count = 0. We should fix that (#5419)
+        (is (=
+             ;; Mongo returns empty row for count = 0. We should fix that (#5419)
              (case driver/*driver*
                :mongo []
                [[0]])
@@ -1090,7 +1090,7 @@
                 "\"PUBLIC\".\"CHECKINS\".\"DATE\" < CAST(dateadd('day', CAST(1 AS long), now()) AS date)"
                 ")")
            (:query
-            (qp/query->native
+            (qp/compile
              (mt/mbql-query checkins
                {:aggregation [[:count]]
                 :filter      [:= $date [:relative-datetime :current]]})))))))
@@ -1107,9 +1107,9 @@
                   "GROUP BY CHECKINS.DATE "
                   "ORDER BY CHECKINS.DATE ASC "
                   "LIMIT 1048575")
-             (sql.qp.test/pretty-sql
+             (sql.qp-test-util/pretty-sql
               (:query
-               (qp/query->native
+               (qp/compile
                 (mt/mbql-query checkins
                   {:filter   [:time-interval $date -4 :month]
                    :breakout [[:datetime-field $date :day]]})))))))))
@@ -1161,3 +1161,18 @@
                        {:aggregation [[:count]]
                         :breakout    [!day-of-week.date]
                         :filter      [:between $date "2013-01-03" "2013-01-20"]}))))))))))
+
+(deftest filter-by-current-quarter-test
+  (mt/test-drivers (mt/normal-drivers)
+    (testing "Should be able to filter by current quarter (#20683)"
+      (let [query (mt/mbql-query checkins
+                    {:aggregation [[:count]]
+                     :filter [:= !quarter.date [:relative-datetime :now]]})]
+        (mt/with-native-query-testing-context query
+          ;; this isn't expected to return anything; for now it's enough just to make sure that the query doesn't fail.
+          (is (=
+               ;; Mongo returns empty row for count = 0. We should fix that (#5419)
+               (case driver/*driver*
+                 :mongo []
+                 [[0]])
+               (mt/formatted-rows [int] (qp/process-query query)))))))))

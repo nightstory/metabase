@@ -3,9 +3,10 @@ import {
   openOrdersTable,
   popover,
   visualize,
+  summarize,
 } from "__support__/e2e/cypress";
 
-describe.skip("issue 17512", () => {
+describe("issue 17512", () => {
   beforeEach(() => {
     cy.intercept("POST", "/api/dataset").as("dataset");
 
@@ -26,8 +27,8 @@ describe.skip("issue 17512", () => {
 
     addCustomColumn("1 + 1", "CC");
 
-    visualize(response => {
-      expect(response.body.error).to.not.exist;
+    visualize(({ body }) => {
+      expect(body.error).to.not.exist;
     });
 
     cy.findByText("CE");
@@ -36,13 +37,13 @@ describe.skip("issue 17512", () => {
 });
 
 function addSummarizeCustomExpression(formula, name) {
-  cy.findByText("Summarize").click();
+  summarize({ mode: "notebook" });
   popover()
     .contains("Custom Expression")
     .click();
 
   popover().within(() => {
-    cy.get("[contenteditable='true']")
+    cy.get(".ace_text-input")
       .type(formula)
       .blur();
     cy.findByPlaceholderText("Name (required)").type(name);
@@ -53,7 +54,7 @@ function addSummarizeCustomExpression(formula, name) {
 function addCustomColumn(formula, name) {
   cy.findByText("Custom column").click();
   popover().within(() => {
-    cy.get("[contenteditable='true']")
+    cy.get(".ace_text-input")
       .type(formula)
       .blur();
     cy.findByPlaceholderText("Something nice and descriptive").type(name);

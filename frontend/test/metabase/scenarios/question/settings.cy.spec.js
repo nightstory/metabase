@@ -7,8 +7,10 @@ import {
   sidebar,
 } from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
-const { ORDERS, ORDERS_ID, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATASET;
+import { SAMPLE_DB_ID } from "__support__/e2e/cypress_data";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
+
+const { ORDERS, ORDERS_ID, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
 describe("scenarios > question > settings", () => {
   beforeEach(() => {
@@ -31,10 +33,7 @@ describe("scenarios > question > settings", () => {
         .invoke("width")
         .should("be.gt", 350);
 
-      cy.contains("Table options")
-        .parents(".scroll-y")
-        .first()
-        .as("tableOptions");
+      cy.findByTestId("sidebar-content").as("tableOptions");
 
       // remove Total column
       cy.get("@tableOptions")
@@ -93,7 +92,7 @@ describe("scenarios > question > settings", () => {
               },
             ],
           },
-          database: 1,
+          database: SAMPLE_DB_ID,
         },
         display: "table",
       });
@@ -152,7 +151,7 @@ describe("scenarios > question > settings", () => {
         dataset_query: {
           type: "query",
           query: { "source-table": ORDERS_ID },
-          database: 1,
+          database: SAMPLE_DB_ID,
         },
       });
 
@@ -178,7 +177,7 @@ describe("scenarios > question > settings", () => {
 
       const questionDetails = {
         dataset_query: {
-          database: 1,
+          database: SAMPLE_DB_ID,
           query: { "source-table": 2 },
           type: "query",
         },
@@ -216,7 +215,7 @@ describe("scenarios > question > settings", () => {
 
       // create a new question to see if the "add to a dashboard" modal is still there
       browse().click();
-      cy.contains("Sample Dataset").click();
+      cy.contains("Sample Database").click();
       cy.contains("Orders").click();
 
       // This next assertion might not catch bugs where the modal displays after

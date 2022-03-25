@@ -2,10 +2,11 @@ import {
   restore,
   popover,
   showDashboardCardActions,
+  visitDashboard,
 } from "__support__/e2e/cypress";
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { PEOPLE, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATASET;
+const { PEOPLE, PRODUCTS, PRODUCTS_ID } = SAMPLE_DATABASE;
 
 // This token (simliar to what's done in parameters-embedded.cy.spec.js) just encodes the dashboardId=2 and dashboard parameters
 // See this link for details: https://jwt.io/#debugger-io?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyZXNvdXJjZSI6eyJkYXNoYm9hcmQiOjJ9LCJwYXJhbXMiOnt9LCJpYXQiOjE2MDc5NzUwMTMsIl9lbWJlZGRpbmdfcGFyYW1zIjp7InN0YXRlIjoiZW5hYmxlZCIsImNpdHkiOiJlbmFibGVkIn19.nqy_ibysLb6QB9o3loG5SNgOoE5HdexuUjCjA_KS1kM
@@ -122,7 +123,7 @@ describe("scenarios > dashboard > chained filter", () => {
   for (const has_field_values of ["search", "list"]) {
     it(`limit ${has_field_values} options based on linked filter`, () => {
       cy.request("PUT", `/api/field/${PEOPLE.CITY}`, { has_field_values }),
-        cy.visit("/dashboard/1");
+        visitDashboard(1);
       // start editing
       cy.icon("pencil").click();
 
@@ -169,7 +170,7 @@ describe("scenarios > dashboard > chained filter", () => {
           cy.findByText("Location")
             .parent()
             .within(() => {
-              cy.get("a").click();
+              cy.get("input").click();
             });
 
           // open up the list of linked columns
@@ -197,6 +198,45 @@ describe("scenarios > dashboard > chained filter", () => {
         ).type("An");
         cy.findByText("Anchorage");
         cy.findByText("Anacoco").should("not.exist");
+
+        cy.get("input")
+          .first()
+          .clear();
+      });
+
+      cy.findByText("AK").click();
+      popover().within(() => {
+        cy.findByText("AK").click();
+        cy.findByText("GA").click();
+
+        cy.findByText("Update filter").click();
+      });
+
+      // do it again to make sure it isn't cached incorrectly
+      cy.findByText("Location 1").click();
+      popover().within(() => {
+        cy.get("input")
+          .first()
+          .type("An");
+        cy.findByText("Canton");
+        cy.findByText("Anchorage").should("not.exist");
+      });
+
+      cy.findByText("GA").click();
+      popover().within(() => {
+        cy.findByText("GA").click();
+        cy.findByText("Update filter").click();
+      });
+
+      // do it again without a state filter to make sure it isn't cached incorrectly
+      cy.findByText("Location 1").click();
+      popover().within(() => {
+        cy.get("input")
+          .first()
+          .type("An");
+        cy.findByText("Adrian");
+        cy.findByText("Anchorage");
+        cy.findByText("Canton");
       });
     });
   }
@@ -211,7 +251,7 @@ describe("scenarios > dashboard > chained filter", () => {
         },
         enable_embedding: true,
       });
-      cy.visit(`/dashboard/${dashboardId}`);
+      visitDashboard(dashboardId);
     });
 
     // First make sure normal filtering works - we reuse the chained filter test above.
@@ -305,7 +345,7 @@ describe("scenarios > dashboard > chained filter", () => {
           });
         });
 
-        cy.visit(`/dashboard/${DASHBOARD_ID}`);
+        visitDashboard(DASHBOARD_ID);
         cy.icon("pencil").click();
         showDashboardCardActions();
         cy.icon("click").click();

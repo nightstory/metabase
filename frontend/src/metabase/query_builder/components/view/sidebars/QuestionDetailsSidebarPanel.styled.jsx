@@ -1,4 +1,4 @@
-import styled from "styled-components";
+import styled from "@emotion/styled";
 import { color } from "metabase/lib/colors";
 
 export const Container = styled.div`
@@ -25,5 +25,13 @@ export const BorderedSectionContainer = styled.div`
 
   &:not(:empty) {
     border-top: 1px solid ${color("border")};
+  }
+`;
+
+export const ModerationSectionContainer = styled.div`
+  .Button {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
   }
 `;

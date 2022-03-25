@@ -1,6 +1,7 @@
 (ns metabase.api.pulse-test
   "Tests for /api/pulse endpoints."
   (:require [clojure.test :refer :all]
+            [java-time :as t]
             [metabase.api.card-test :as card-api-test]
             [metabase.api.pulse :as pulse-api]
             [metabase.http-client :as http]
@@ -509,8 +510,9 @@
           ;; grant Permissions for only the *old* collection
           (perms/grant-collection-readwrite-permissions! (perms-group/all-users) collection)
           ;; now make an API call to move collections. Should fail
-          (is (= "You don't have permissions to do that."
-                 (mt/user-http-request :rasta :put 403 (str "pulse/" (u/the-id pulse)) {:collection_id (u/the-id new-collection)}))))))))
+          (is (schema= {:message (s/eq "You do not have curate permissions for this Collection.")
+                        s/Keyword s/Any}
+                       (mt/user-http-request :rasta :put 403 (str "pulse/" (u/the-id pulse)) {:collection_id (u/the-id new-collection)}))))))))
 
 (deftest update-collection-position-test
   (testing "Can we change the Collection position of a Pulse?"
@@ -967,15 +969,21 @@
 (deftest form-input-test
   (testing "GET /api/pulse/form_input"
     (testing "Check that Slack channels come back when configured"
-      (mt/with-temporary-setting-values [slack-token "something"]
-        (with-redefs [slack/conversations-list (constantly [{:name "foo"}])
-                      slack/users-list         (constantly [{:name "bar"}])]
-          (is (= [{:name "channel", :type "select", :displayName "Post to", :options ["#foo" "@bar"], :required true}]
+      (mt/with-temporary-setting-values [slack-token nil
+                                         slack-app-token "something"]
+        (with-redefs [slack/conversations-list (constantly ["#foo" "#two" "#general"])
+                      slack/users-list         (constantly ["@bar" "@baz"])]
+          ;; set the cache to these values
+          (slack/slack-cached-channels-and-usernames (concat (slack/conversations-list) (slack/users-list)))
+          ;; don't let the cache refresh itself (it will refetch if it is too old)
+          (slack/slack-channels-and-usernames-last-updated (t/zoned-date-time))
+          (is (= [{:name "channel", :type "select", :displayName "Post to", :options ["#foo" "#two" "#general" "@bar" "@baz"], :required true}]
                  (-> (mt/user-http-request :rasta :get 200 "pulse/form_input")
                      (get-in [:channels :slack :fields])))))))
 
     (testing "When slack is not configured, `form_input` returns no channels"
-      (mt/with-temporary-setting-values [slack-token nil]
+      (mt/with-temporary-setting-values [slack-token nil
+                                         slack-app-token nil]
         (is (empty?
                (-> (mt/user-http-request :rasta :get 200 "pulse/form_input")
                    (get-in [:channels :slack :fields])

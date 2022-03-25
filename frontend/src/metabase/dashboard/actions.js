@@ -3,7 +3,6 @@ import { assoc, assocIn, dissocIn, getIn } from "icepick";
 import _ from "underscore";
 
 import { createAction, createThunkAction } from "metabase/lib/redux";
-import { open } from "metabase/lib/dom";
 import { defer } from "metabase/lib/promise";
 import { normalize, schema } from "normalizr";
 
@@ -12,6 +11,7 @@ import Question from "metabase-lib/lib/Question";
 import Dashboards from "metabase/entities/dashboards";
 import Questions from "metabase/entities/questions";
 
+import { openUrl } from "metabase/redux/app";
 import {
   createParameter,
   setParameterName as setParamName,
@@ -19,6 +19,8 @@ import {
   getMappingsByParameter,
   getDashboardParametersWithFieldMetadata,
   getParametersMappedToDashcard,
+  getFilteringParameterValuesMap,
+  getParameterValuesSearchKey,
 } from "metabase/parameters/utils/dashboards";
 import { applyParameters } from "metabase/meta/Card";
 import {
@@ -38,7 +40,6 @@ import {
   addFields,
   loadMetadataForQueries,
 } from "metabase/redux/metadata";
-import { push } from "react-router-redux";
 
 import {
   DashboardApi,
@@ -55,6 +56,7 @@ import {
   getDashboardBeforeEditing,
   getDashboardComplete,
   getParameterValues,
+  getDashboardParameterValuesSearchCache,
 } from "./selectors";
 import { getMetadata } from "metabase/selectors/metadata";
 import { getCardAfterVisualizationClick } from "metabase/visualizations/lib/utils";
@@ -130,6 +132,9 @@ export const SHOW_ADD_PARAMETER_POPOVER =
 export const HIDE_ADD_PARAMETER_POPOVER =
   "metabase/dashboard/HIDE_ADD_PARAMETER_POPOVER";
 
+export const FETCH_DASHBOARD_PARAMETER_FIELD_VALUES =
+  "metabase/dashboard/FETCH_DASHBOARD_PARAMETER_FIELD_VALUES";
+
 export const SET_SIDEBAR = "metabase/dashboard/SET_SIDEBAR";
 export const CLOSE_SIDEBAR = "metabase/dashboard/CLOSE_SIDEBAR";
 
@@ -204,6 +209,12 @@ function generateTemporaryDashcardId() {
 // real dashcard ids are integers >= 1
 function isNewDashcard(dashcard) {
   return dashcard.id < 1 && dashcard.id >= 0;
+}
+
+function isNewAdditionalSeriesCard(card, dashcard) {
+  return (
+    card.id !== dashcard.card_id && !dashcard.series.some(s => s.id === card.id)
+  );
 }
 
 export const addCardToDashboard = ({ dashId, cardId }) => async (
@@ -566,6 +577,7 @@ export const fetchCardData = createThunkAction(FETCH_CARD_DATA, function(
         maybeUsePivotEndpoint(PublicApi.dashboardCardQuery, card)(
           {
             uuid: dashcard.dashboard_id,
+            dashcardId: dashcard.id,
             cardId: card.id,
             parameters: datasetQuery.parameters
               ? JSON.stringify(datasetQuery.parameters)
@@ -596,15 +608,17 @@ export const fetchCardData = createThunkAction(FETCH_CARD_DATA, function(
         ),
       );
     } else {
-      // new cards aren't yet saved to the dashboard, so they need to be run using the card query endpoint
-      const endpoint = isNewDashcard(dashcard)
-        ? CardApi.query
-        : DashboardApi.cardQuery;
+      // new dashcards and new additional series cards aren't yet saved to the dashboard, so they need to be run using the card query endpoint
+      const endpoint =
+        isNewDashcard(dashcard) || isNewAdditionalSeriesCard(card, dashcard)
+          ? CardApi.query
+          : DashboardApi.cardQuery;
 
       result = await fetchDataOrError(
         maybeUsePivotEndpoint(endpoint, card)(
           {
             dashboardId: dashcard.dashboard_id,
+            dashcardId: dashcard.id,
             cardId: card.id,
             parameters: datasetQuery.parameters,
             ignore_cache: ignoreCache,
@@ -972,7 +986,10 @@ export const navigateToNewCardFromDashboard = createThunkAction(
         .setSettings(dashcard.card.visualization_settings)
         .lockDisplay();
     } else {
-      question = question.setCard(dashcard.card).setDashboardId(dashboard.id);
+      question = question.setCard(dashcard.card).setDashboardProps({
+        dashboardId: dashboard.id,
+        dashcardId: dashcard.id,
+      });
     }
 
     const parametersMappedToCard = getParametersMappedToDashcard(
@@ -986,10 +1003,7 @@ export const navigateToNewCardFromDashboard = createThunkAction(
       ? Urls.serializedQuestion(question.card())
       : question.getUrlWithParameters(parametersMappedToCard, parameterValues);
 
-    open(url, {
-      blankOnMetaOrCtrlKey: true,
-      openInSameWindow: url => dispatch(push(url)),
-    });
+    dispatch(openUrl(url));
   },
 );
 
@@ -1003,3 +1017,44 @@ const loadMetadataForDashboard = dashCards => (dispatch, getState) => {
 
   return dispatch(loadMetadataForQueries(queries));
 };
+
+export const fetchDashboardParameterValues = createThunkAction(
+  FETCH_DASHBOARD_PARAMETER_FIELD_VALUES,
+  ({ dashboardId, parameter, parameters, query }) => async (
+    dispatch,
+    getState,
+  ) => {
+    const parameterValuesSearchCache = getDashboardParameterValuesSearchCache(
+      getState(),
+    );
+    const filteringParameterValues = getFilteringParameterValuesMap(
+      parameter,
+      parameters,
+    );
+    const cacheKey = getParameterValuesSearchKey({
+      dashboardId,
+      parameterId: parameter.id,
+      query,
+      filteringParameterValues,
+    });
+
+    if (parameterValuesSearchCache[cacheKey]) {
+      return;
+    }
+
+    const endpoint = query
+      ? DashboardApi.parameterSearch
+      : DashboardApi.parameterValues;
+    const results = await endpoint({
+      paramId: parameter.id,
+      dashId: dashboardId,
+      query,
+      ...filteringParameterValues,
+    });
+
+    return {
+      cacheKey,
+      results: results.map(result => [].concat(result)),
+    };
+  },
+);

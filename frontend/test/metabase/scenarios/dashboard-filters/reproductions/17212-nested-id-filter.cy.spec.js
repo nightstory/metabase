@@ -3,11 +3,12 @@ import {
   editDashboard,
   setFilter,
   popover,
+  visitDashboard,
 } from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { PRODUCTS_ID } = SAMPLE_DATASET;
+const { PRODUCTS_ID } = SAMPLE_DATABASE;
 
 const baseQuestion = {
   query: { "source-table": PRODUCTS_ID },
@@ -25,14 +26,7 @@ describe.skip("issue 17212", () => {
 
       cy.createQuestionAndDashboard({ questionDetails }).then(
         ({ body: { card_id, dashboard_id } }) => {
-          cy.intercept(
-            "POST",
-            `/api/dashboard/${dashboard_id}/card/${card_id}/query`,
-          ).as("cardQuery");
-
-          cy.visit(`/dashboard/${dashboard_id}`);
-
-          cy.wait("@cardQuery");
+          visitDashboard(dashboard_id);
         },
       );
     });

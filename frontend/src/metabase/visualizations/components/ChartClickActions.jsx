@@ -156,11 +156,8 @@ export default class ChartClickActions extends Component {
       });
       delete groupedClickActions["sum"];
     }
-    if (
-      clicked.column &&
-      clicked.column.source === "native" &&
-      groupedClickActions["sort"]
-    ) {
+    const hasOnlyOneSortAction = groupedClickActions["sort"]?.length === 1;
+    if (clicked.column?.source === "native" && hasOnlyOneSortAction) {
       // restyle the Formatting action for SQL columns
       groupedClickActions["sort"][0] = {
         ...groupedClickActions["sort"][0],
@@ -171,6 +168,8 @@ export default class ChartClickActions extends Component {
       .pairs()
       .sortBy(([key]) => (SECTIONS[key] ? SECTIONS[key].index : 99))
       .value();
+
+    const hasOnlyOneSection = sections.length === 1;
 
     return (
       <Popover
@@ -202,7 +201,9 @@ export default class ChartClickActions extends Component {
                     ml1:
                       SECTIONS[key].icon === "bolt" ||
                       SECTIONS[key].icon === "sum" ||
-                      SECTIONS[key].icon === "breakout",
+                      SECTIONS[key].icon === "breakout" ||
+                      (SECTIONS[key].icon === "funnel_outline" &&
+                        !hasOnlyOneSection),
                   },
                 )}
               >
@@ -218,7 +219,13 @@ export default class ChartClickActions extends Component {
                   </p>
                 )}
                 {SECTIONS[key].icon === "funnel_outline" && (
-                  <p className="mt0 text-dark text-small">
+                  <p
+                    className={cx(
+                      "text-small",
+                      hasOnlyOneSection ? "mt0" : "mt2",
+                      hasOnlyOneSection ? "text-dark" : "text-medium",
+                    )}
+                  >
                     {t`Filter by this value`}
                   </p>
                 )}
@@ -270,20 +277,13 @@ export const ChartClickAction = ({ action, isLastItem, handleClickAction }) => {
     "token token-filter text-small text-white-hover mr1":
       action.buttonType === "token-filter",
   });
-  // NOTE: Tom Robinson 4/16/2018: disabling <Link> for `question` click actions
-  // for now since on dashboards currently they need to go through
-  // navigateToNewCardFromDashboard to merge in parameters.,
-  // Also need to sort out proper logic in QueryBuilder's UNSAFE_componentWillReceiveProps
-  // if (action.question) {
-  //   return (
-  //     <Link to={action.question().getUrl()} className={className}>
-  //       {action.title}
-  //     </Link>
-  //   );
-  // } else
   if (action.url) {
     return (
-      <div>
+      <div
+        className={cx({
+          full: action.buttonType === "horizontal",
+        })}
+      >
         <Link
           to={action.url()}
           className={className}

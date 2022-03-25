@@ -13,4 +13,7 @@ export const MODAL_TYPES = {
   HISTORY: "history",
   EMBED: "embed",
   TURN_INTO_DATASET: "turn-into-dataset",
+  CAN_NOT_CREATE_MODEL: "can-not-create-model",
+  NEW_EVENT: "new-event",
+  EDIT_EVENT: "edit-event",
 };

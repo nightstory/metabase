@@ -4,6 +4,7 @@ import * as Tippy from "@tippyjs/react";
 import * as ReactIs from "react-is";
 
 import { isReducedMotionPreferred } from "metabase/lib/dom";
+import { DEFAULT_Z_INDEX } from "metabase/components/Popover/constants";
 
 const TippyComponent = Tippy.default;
 
@@ -20,7 +21,10 @@ Tooltip.propTypes = {
 
 interface TooltipProps
   extends Partial<
-    Pick<Tippy.TippyProps, "reference" | "placement" | "maxWidth" | "offset">
+    Pick<
+      Tippy.TippyProps,
+      "delay" | "reference" | "placement" | "maxWidth" | "offset"
+    >
   > {
   tooltip?: React.ReactNode;
   children?: React.ReactNode;
@@ -59,6 +63,7 @@ function getTargetProps(
 function Tooltip({
   tooltip,
   children,
+  delay,
   reference,
   placement,
   offset,
@@ -83,8 +88,10 @@ function Tooltip({
         maxWidth={maxWidth}
         reference={reference}
         duration={animationDuration}
+        delay={delay}
         placement={placement}
         offset={offset}
+        zIndex={DEFAULT_Z_INDEX}
         {...targetProps}
       />
     );

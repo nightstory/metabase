@@ -8,10 +8,10 @@ import Question from "metabase-lib/lib/Question";
 import MetabaseSettings from "metabase/lib/settings";
 
 import {
-  SAMPLE_DATASET,
+  SAMPLE_DATABASE,
   ORDERS,
   metadata,
-} from "__support__/sample_dataset_fixture";
+} from "__support__/sample_database_fixture";
 import { setupEnterpriseTest } from "__support__/enterprise";
 
 function mockCachingEnabled(enabled = true) {
@@ -78,7 +78,7 @@ function getQuestion({
       visualization_settings: {},
       dataset_query: {
         type: "query",
-        database: SAMPLE_DATASET.id,
+        database: SAMPLE_DATABASE.id,
         query: {
           "source-table": ORDERS.id,
           aggregation: [["count"]],
@@ -196,7 +196,7 @@ describe("SaveQuestionModal", () => {
         ...question.card(),
         name: EXPECTED_SUGGESTED_NAME,
         description: null,
-        collection_id: undefined,
+        collection_id: null,
       });
     });
 
@@ -212,7 +212,7 @@ describe("SaveQuestionModal", () => {
         ...question.card(),
         name: "My favorite orders",
         description: "So many of them",
-        collection_id: undefined,
+        collection_id: null,
       });
     });
 
@@ -231,7 +231,25 @@ describe("SaveQuestionModal", () => {
         ...question.card(),
         name: "My favorite orders",
         description: "So many of them",
-        collection_id: undefined,
+        collection_id: null,
+      });
+    });
+
+    it('should correctly handle saving a question in the "root" collection', () => {
+      const question = getQuestion({
+        collection_id: "root",
+      });
+      const { onCreateMock } = renderSaveQuestionModal(question);
+
+      fillForm({ name: "foo", description: "bar" });
+      userEvent.click(screen.getByText("Save"));
+
+      expect(onCreateMock).toHaveBeenCalledTimes(1);
+      expect(onCreateMock).toHaveBeenCalledWith({
+        ...question.card(),
+        name: "foo",
+        description: "bar",
+        collection_id: null,
       });
     });
 
@@ -488,7 +506,7 @@ describe("SaveQuestionModal", () => {
     });
 
     const question = Question.create({
-      databaseId: SAMPLE_DATASET.id,
+      databaseId: SAMPLE_DATABASE.id,
       tableId: ORDERS.id,
       metadata,
     })

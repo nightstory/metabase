@@ -1,6 +1,9 @@
 import React from "react";
 
-import { PLUGIN_LANDING_PAGE } from "metabase/plugins";
+import {
+  PLUGIN_LANDING_PAGE,
+  PLUGIN_FEATURE_LEVEL_PERMISSIONS,
+} from "metabase/plugins";
 
 import { Route } from "metabase/hoc/Title";
 import { Redirect, IndexRedirect, IndexRoute } from "react-router";
@@ -16,7 +19,7 @@ import App from "metabase/App.jsx";
 import ActivityApp from "metabase/home/containers/ActivityApp";
 
 // auth containers
-import AuthApp from "metabase/auth/AuthApp";
+import AuthApp from "metabase/auth/containers/AuthApp";
 import ForgotPasswordApp from "metabase/auth/containers/ForgotPasswordApp";
 import LoginApp from "metabase/auth/containers/LoginApp";
 import LogoutApp from "metabase/auth/containers/LogoutApp";
@@ -72,6 +75,7 @@ import FieldDetailContainer from "metabase/reference/databases/FieldDetailContai
 
 import getAccountRoutes from "metabase/account/routes";
 import getAdminRoutes from "metabase/admin/routes";
+import getCollectionTimelineRoutes from "metabase/timelines/collections/routes";
 
 import PublicQuestion from "metabase/public/containers/PublicQuestion";
 import PublicDashboard from "metabase/public/containers/PublicDashboard";
@@ -90,9 +94,9 @@ import SearchApp from "metabase/home/containers/SearchApp";
 import { trackPageView } from "metabase/lib/analytics";
 
 const MetabaseIsSetup = UserAuthWrapper({
-  predicate: authData => !authData.hasSetupToken,
+  predicate: authData => authData.hasUserSetup,
   failureRedirectPath: "/setup",
-  authSelector: state => ({ hasSetupToken: MetabaseSettings.hasSetupToken() }), // HACK
+  authSelector: state => ({ hasUserSetup: MetabaseSettings.hasUserSetup() }), // HACK
   wrapperDisplayName: "MetabaseIsSetup",
   allowRedirectBack: false,
   redirectAction: routerActions.replace,
@@ -123,6 +127,31 @@ const UserIsNotAuthenticated = UserAuthWrapper({
   redirectAction: routerActions.replace,
 });
 
+const UserCanAccessSettings = UserAuthWrapper({
+  predicate: currentUser =>
+    currentUser?.is_superuser ||
+    PLUGIN_FEATURE_LEVEL_PERMISSIONS.canAccessSettings(currentUser),
+  failureRedirectPath: "/unauthorized",
+  authSelector: state => state.currentUser,
+  allowRedirectBack: false,
+  wrapperDisplayName: "UserCanAccessSettings",
+  redirectAction: routerActions.replace,
+});
+
+const createRouteGuard = (userPredicate, displayName) => {
+  const Wrapper = UserAuthWrapper({
+    predicate: currentUser =>
+      currentUser?.is_superuser || userPredicate(currentUser),
+    failureRedirectPath: "/unauthorized",
+    authSelector: state => state.currentUser,
+    allowRedirectBack: false,
+    wrapperDisplayName: displayName,
+    redirectAction: routerActions.replace,
+  });
+
+  return Wrapper(({ children }) => children);
+};
+
 const IsAuthenticated = MetabaseIsSetup(
   UserIsAuthenticated(({ children }) => children),
 );
@@ -134,6 +163,20 @@ const IsNotAuthenticated = MetabaseIsSetup(
   UserIsNotAuthenticated(({ children }) => children),
 );
 
+const CanAccessSettings = MetabaseIsSetup(
+  UserIsAuthenticated(UserCanAccessSettings(({ children }) => children)),
+);
+
+const CanAccessDataModel = createRouteGuard(
+  PLUGIN_FEATURE_LEVEL_PERMISSIONS.canAccessDataModel,
+  "CanAccessDataModel",
+);
+
+const CanAccessDatabaseManagement = createRouteGuard(
+  PLUGIN_FEATURE_LEVEL_PERMISSIONS.canAccessDatabaseManagement,
+  "CanAccessDatabasesManagement",
+);
+
 export const getRoutes = store => (
   <Route title={t`Metabase`} component={App}>
     {/* SETUP */}
@@ -141,7 +184,7 @@ export const getRoutes = store => (
       path="/setup"
       component={SetupApp}
       onEnter={(nextState, replace) => {
-        if (!MetabaseSettings.hasSetupToken()) {
+        if (MetabaseSettings.hasUserSetup()) {
           replace("/");
         }
         trackPageView(location.pathname);
@@ -207,6 +250,7 @@ export const getRoutes = store => (
           <ModalRoute path="new_collection" modal={CollectionCreate} />
           <ModalRoute path="new_dashboard" modal={CreateDashboardModal} />
           <ModalRoute path="permissions" modal={CollectionPermissionsModal} />
+          {getCollectionTimelineRoutes()}
         </Route>
 
         <Route path="activity" component={ActivityApp} />
@@ -234,14 +278,17 @@ export const getRoutes = store => (
           <Route path="notebook" component={QueryBuilder} />
           <Route path=":slug" component={QueryBuilder} />
           <Route path=":slug/notebook" component={QueryBuilder} />
+          <Route path=":slug/:objectId" component={QueryBuilder} />
         </Route>
 
-        <Route path="/dataset">
+        <Route path="/model">
           <IndexRoute component={QueryBuilder} />
           <Route path="notebook" component={QueryBuilder} />
           <Route path=":slug" component={QueryBuilder} />
           <Route path=":slug/notebook" component={QueryBuilder} />
           <Route path=":slug/query" component={QueryBuilder} />
+          <Route path=":slug/metadata" component={QueryBuilder} />
+          <Route path=":slug/:objectId" component={QueryBuilder} />
         </Route>
 
         <Route path="browse" component={BrowseApp}>
@@ -335,7 +382,13 @@ export const getRoutes = store => (
       {getAccountRoutes(store, IsAuthenticated)}
 
       {/* ADMIN */}
-      {getAdminRoutes(store, IsAdmin)}
+      {getAdminRoutes(
+        store,
+        CanAccessSettings,
+        IsAdmin,
+        CanAccessDataModel,
+        CanAccessDatabaseManagement,
+      )}
     </Route>
 
     {/* INTERNAL */}

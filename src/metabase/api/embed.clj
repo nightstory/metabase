@@ -20,9 +20,11 @@
             [compojure.core :refer [GET]]
             [medley.core :as m]
             [metabase.api.common :as api]
+            [metabase.api.common.validation :as validation]
             [metabase.api.dashboard :as dashboard-api]
             [metabase.api.dataset :as dataset-api]
             [metabase.api.public :as public-api]
+            [metabase.driver.common.parameters.operators :as params.operators]
             [metabase.models.card :refer [Card]]
             [metabase.models.dashboard :refer [Dashboard]]
             [metabase.query-processor :as qp]
@@ -160,7 +162,13 @@
   [parameters slug->value]
   (when (seq parameters)
     (for [param parameters
-          :let  [value (get slug->value (keyword (:slug param)))]
+          :let  [value (get slug->value (keyword (:slug param)))
+                 ;; operator parameters expect a sequence of values so if we get a lone value (e.g. from a single URL
+                 ;; query parameter) wrap it in a sequence
+                 value (if (and (some? value)
+                                (params.operators/operator? (:type param)))
+                         (u/one-or-many value)
+                         value)]
           :when (some? value)]
       (assoc (select-keys param [:type :target :slug])
              :value value))))
@@ -258,10 +266,14 @@
   (let [slug->value (validate-and-merge-params embedding-params token-params (normalize-query-params query-params))
         parameters  (resolve-dashboard-parameters dashboard-id slug->value)]
     (public-api/public-dashcard-results-async
-     dashboard-id card-id export-format parameters
-     :qp-runner   qp-runner
-     :context     :embedded-dashboard
-     :constraints constraints)))
+     :dashboard-id  dashboard-id
+     :card-id       card-id
+     :dashcard-id   dashcard-id
+     :export-format export-format
+     :parameters    parameters
+     :qp-runner     qp-runner
+     :context       :embedded-dashboard
+     :constraints   constraints)))
 
 
 ;;; ------------------------------------- Other /api/embed-specific utility fns --------------------------------------
@@ -272,7 +284,7 @@
    (check-embedding-enabled-for-object (db/select-one [entity :enable_embedding] :id id)))
 
   ([object]
-   (api/check-embedding-enabled)
+   (validation/check-embedding-enabled)
    (api/check-404 object)
    (api/check-not-archived object)
    (api/check (:enable_embedding object)
@@ -356,7 +368,7 @@
     (check-embedding-enabled-for-dashboard (eu/get-in-unsigned-token-or-throw unsigned [:resource :dashboard]))
     (dashboard-for-unsigned-token unsigned, :constraints {:enable_embedding true})))
 
-(defn- card-results-for-signed-token-async
+(defn- dashcard-results-for-signed-token-async
   "Fetch the results of running a Card belonging to a Dashboard using a JSON Web Token signed with the
    `embedding-secret-key`.
 
@@ -391,7 +403,7 @@
   "Fetch the results of running a Card belonging to a Dashboard using a JSON Web Token signed with the
   `embedding-secret-key`"
   [token dashcard-id card-id & query-params]
-  (card-results-for-signed-token-async token dashcard-id card-id :api query-params))
+  (dashcard-results-for-signed-token-async token dashcard-id card-id :api query-params))
 
 
 ;;; +----------------------------------------------------------------------------------------------------------------+
@@ -469,7 +481,7 @@
   `embedding-secret-key` return the data in one of the export formats"
   [token export-format dashcard-id card-id, :as {:keys [query-params]}]
   {export-format dataset-api/ExportFormat}
-  (card-results-for-signed-token-async token
+  (dashcard-results-for-signed-token-async token
     dashcard-id
     card-id
     export-format
@@ -569,6 +581,6 @@
   "Fetch the results of running a Card belonging to a Dashboard using a JSON Web Token signed with the
   `embedding-secret-key`"
   [token dashcard-id card-id & query-params]
-  (card-results-for-signed-token-async token dashcard-id card-id :api query-params :qp-runner qp.pivot/run-pivot-query))
+  (dashcard-results-for-signed-token-async token dashcard-id card-id :api query-params :qp-runner qp.pivot/run-pivot-query))
 
 (api/define-routes)

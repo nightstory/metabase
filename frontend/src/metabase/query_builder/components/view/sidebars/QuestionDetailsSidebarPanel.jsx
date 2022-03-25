@@ -11,15 +11,23 @@ import {
   Container,
   BorderedSectionContainer,
   SidebarPaddedContent,
+  ModerationSectionContainer,
 } from "./QuestionDetailsSidebarPanel.styled";
 import DatasetManagementSection from "./DatasetManagementSection";
 
 QuestionDetailsSidebarPanel.propTypes = {
   question: PropTypes.object.isRequired,
   onOpenModal: PropTypes.func.isRequired,
+  isBookmarked: PropTypes.bool.isRequired,
+  toggleBookmark: PropTypes.func.isRequired,
 };
 
-function QuestionDetailsSidebarPanel({ question, onOpenModal }) {
+function QuestionDetailsSidebarPanel({
+  question,
+  onOpenModal,
+  isBookmarked,
+  toggleBookmark,
+}) {
   const isDataset = question.isDataset();
   const canWrite = question.canWrite();
   const description = question.description();
@@ -34,9 +42,11 @@ function QuestionDetailsSidebarPanel({ question, onOpenModal }) {
     <Container>
       <SidebarPaddedContent>
         <QuestionActionButtons
+          question={question}
           canWrite={canWrite}
-          isDataset={question.isDataset()}
           onOpenModal={onOpenModal}
+          isBookmarked={isBookmarked}
+          toggleBookmark={toggleBookmark}
         />
         <ClampedDescription
           visibleLines={8}
@@ -47,7 +57,13 @@ function QuestionDetailsSidebarPanel({ question, onOpenModal }) {
           {isDataset && canWrite && (
             <DatasetManagementSection dataset={question} />
           )}
-          <PLUGIN_MODERATION.QuestionModerationSection question={question} />
+          {!isDataset && (
+            <ModerationSectionContainer>
+              <PLUGIN_MODERATION.QuestionModerationSection
+                question={question}
+              />
+            </ModerationSectionContainer>
+          )}
         </BorderedSectionContainer>
       </SidebarPaddedContent>
       <QuestionActivityTimeline question={question} />

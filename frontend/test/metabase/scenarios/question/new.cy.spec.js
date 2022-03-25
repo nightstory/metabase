@@ -1,17 +1,19 @@
 import {
   browse,
   enterCustomColumnDetails,
-  getBinningButtonForDimension,
   openOrdersTable,
   openReviewsTable,
   popover,
   restore,
   visualize,
+  summarize,
+  openNotebookEditor,
+  visitQuestion,
 } from "__support__/e2e/cypress";
 
-import { SAMPLE_DATASET } from "__support__/e2e/cypress_sample_dataset";
+import { SAMPLE_DATABASE } from "__support__/e2e/cypress_sample_database";
 
-const { ORDERS, ORDERS_ID } = SAMPLE_DATASET;
+const { ORDERS, ORDERS_ID } = SAMPLE_DATABASE;
 
 // test various entry points into the query builder
 
@@ -29,7 +31,7 @@ describe("scenarios > question > new", () => {
         name: "Sample" + i,
         details: {
           db:
-            "zip:./target/uberjar/metabase.jar!/sample-dataset.db;USER=GUEST;PASSWORD=guest",
+            "zip:./target/uberjar/metabase.jar!/sample-database.db;USER=GUEST;PASSWORD=guest",
         },
         auto_run_queries: false,
         is_full_sync: false,
@@ -49,37 +51,6 @@ describe("scenarios > question > new", () => {
     cy.findByText("Sample3").isVisibleInPopover();
   });
 
-  it("binning on values from joined table should work (metabase#15648)", () => {
-    // Simple question
-    openOrdersTable();
-    cy.findByText("Summarize").click();
-    cy.findByText("Group by")
-      .parent()
-      .findByText("Rating")
-      .click();
-    cy.get(".Visualization .bar").should("have.length", 6);
-
-    // Custom question ("Notebook")
-    openOrdersTable({ mode: "notebook" });
-    cy.findByText("Summarize").click();
-    cy.findByText("Count of rows").click();
-    cy.findByText("Pick a column to group by").click();
-    popover().within(() => {
-      // Close expanded "Orders" section in order to bring everything else into view
-      cy.get(".List-section-title")
-        .contains(/Orders?/)
-        .click();
-      cy.get(".List-section-title")
-        .contains(/Products?/)
-        .click();
-      cy.findByText("Rating").click();
-    });
-
-    visualize();
-
-    cy.get(".Visualization .bar").should("have.length", 6);
-  });
-
   it("should display a tooltip for CTA icons on an individual question (metabase#16108)", () => {
     openOrdersTable();
     cy.icon("download").realHover();
@@ -94,7 +65,7 @@ describe("scenarios > question > new", () => {
     it("should load orders table and summarize", () => {
       cy.visit("/");
       browse().click();
-      cy.contains("Sample Dataset").click();
+      cy.contains("Sample Database").click();
       cy.contains("Orders").click();
       cy.contains("37.65");
     });
@@ -102,8 +73,7 @@ describe("scenarios > question > new", () => {
 
   describe("data picker search", () => {
     beforeEach(() => {
-      cy.visit("/");
-      cy.findByText("Ask a question").click();
+      cy.visit("/question/new");
     });
 
     describe("on a (simple) question page", () => {
@@ -125,7 +95,7 @@ describe("scenarios > question > new", () => {
           .findByTestId("search-result-item-name")
           .click();
         cy.url().should("include", "question#");
-        cy.findByText("Sample Dataset");
+        cy.findByText("Sample Database");
         cy.findByText("Orders");
       });
     });
@@ -154,7 +124,7 @@ describe("scenarios > question > new", () => {
         visualize();
 
         cy.url().should("include", "question#");
-        cy.findByText("Sample Dataset");
+        cy.findByText("Sample Database");
         cy.findByText("Orders");
       });
     });
@@ -170,8 +140,7 @@ describe("scenarios > question > new", () => {
 
   describe("saved question picker", () => {
     beforeEach(() => {
-      cy.visit("/");
-      cy.findByText("Ask a question").click();
+      cy.visit("/question/new");
     });
 
     describe("on a (simple) question page", () => {
@@ -260,71 +229,66 @@ describe("scenarios > question > new", () => {
 
   describe("ask a (simple) question", () => {
     it("should load orders table", () => {
-      cy.visit("/");
-      cy.contains("Ask a question").click();
+      cy.visit("/question/new");
       cy.contains("Simple question").click();
-      cy.contains("Sample Dataset").click();
+      cy.contains("Sample Database").click();
       cy.contains("Orders").click();
       cy.contains("37.65");
     });
 
     it.skip("should handle (removing) multiple metrics when one is sorted (metabase#13990)", () => {
-      cy.createQuestion({
-        name: "12625",
-        query: {
-          "source-table": ORDERS_ID,
-          aggregation: [
-            ["count"],
-            ["sum", ["field", ORDERS.SUBTOTAL, null]],
-            ["sum", ["field", ORDERS.TOTAL, null]],
-          ],
-          breakout: [["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }]],
-          "order-by": [["desc", ["aggregation", 1]]],
+      cy.intercept("POST", `/api/dataset`).as("dataset");
+
+      cy.createQuestion(
+        {
+          name: "12625",
+          query: {
+            "source-table": ORDERS_ID,
+            aggregation: [
+              ["count"],
+              ["sum", ["field", ORDERS.SUBTOTAL, null]],
+              ["sum", ["field", ORDERS.TOTAL, null]],
+            ],
+            breakout: [
+              ["field", ORDERS.CREATED_AT, { "temporal-unit": "year" }],
+            ],
+            "order-by": [["desc", ["aggregation", 1]]],
+          },
         },
-      }).then(({ body: { id: QESTION_ID } }) => {
-        cy.server();
-        cy.route("POST", `/api/card/${QESTION_ID}/query`).as("cardQuery");
-        cy.route("POST", `/api/dataset`).as("dataset");
+        { visitQuestion: true },
+      );
 
-        cy.visit(`/question/${QESTION_ID}`);
+      summarize();
 
-        cy.wait("@cardQuery");
-        cy.get("button")
-          .contains("Summarize")
-          .click();
+      // CSS class of a sorted header cell
+      cy.get("[class*=TableInteractive-headerCellData--sorted]").as(
+        "sortedCell",
+      );
 
-        // CSS class of a sorted header cell
-        cy.get("[class*=TableInteractive-headerCellData--sorted]").as(
-          "sortedCell",
-        );
+      // At this point only "Sum of Subtotal" should be sorted
+      cy.get("@sortedCell")
+        .its("length")
+        .should("eq", 1);
+      removeMetricFromSidebar("Sum of Subtotal");
 
-        // At this point only "Sum of Subtotal" should be sorted
-        cy.get("@sortedCell")
-          .its("length")
-          .should("eq", 1);
-        removeMetricFromSidebar("Sum of Subtotal");
+      cy.wait("@dataset");
+      cy.findByText("Sum of Subtotal").should("not.exist");
 
-        cy.wait("@dataset");
-        cy.findByText("Sum of Subtotal").should("not.exist");
+      // "Sum of Total" should not be sorted, nor any other header cell
+      cy.get("@sortedCell")
+        .its("length")
+        .should("eq", 0);
 
-        // "Sum of Total" should not be sorted, nor any other header cell
-        cy.get("@sortedCell")
-          .its("length")
-          .should("eq", 0);
+      removeMetricFromSidebar("Sum of Total");
 
-        removeMetricFromSidebar("Sum of Total");
-
-        cy.wait("@dataset");
-        cy.findByText(/No results!/i).should("not.exist");
-        cy.contains("744"); // `Count` for year 2016
-      });
+      cy.wait("@dataset");
+      cy.findByText(/No results!/i).should("not.exist");
+      cy.contains("744"); // `Count` for year 2016
     });
 
     it("should remove `/notebook` from URL when converting question to SQL/Native (metabase#12651)", () => {
-      cy.server();
-      cy.route("POST", "/api/dataset").as("dataset");
       openOrdersTable();
-      cy.wait("@dataset");
+
       cy.url().should("include", "question#");
       // Isolate icons within "QueryBuilder" scope because there is also `.Icon-sql` in top navigation
       cy.get(".QueryBuilder .Icon-notebook").click();
@@ -335,20 +299,13 @@ describe("scenarios > question > new", () => {
     });
 
     it("should correctly choose between 'Object Detail' and 'Table (metabase#13717)", () => {
-      // set ID to `No semantic type`
-      cy.request("PUT", `/api/field/${ORDERS.ID}`, {
-        semantic_type: null,
-      });
-      // set Quantity to `Entity Key`
       cy.request("PUT", `/api/field/${ORDERS.QUANTITY}`, {
         semantic_type: "type/PK",
       });
 
       openOrdersTable();
-      // this url check is just to give some time for the render to finish
-      cy.url().should("include", "/question#");
 
-      cy.get(".TableInteractive-cellWrapper--lastColumn") // Quantity (last in the default order for Sample Dataset)
+      cy.get(".TableInteractive-cellWrapper--lastColumn") // Quantity (last in the default order for Sample Database)
         .eq(1) // first table body cell
         .should("contain", 2) // quantity for order ID#1
         .click();
@@ -360,67 +317,20 @@ describe("scenarios > question > new", () => {
         "**It should display the table with all orders with the selected quantity.**",
       );
       cy.get(".TableInteractive");
-    });
 
-    it("should display date granularity on Summarize when opened from saved question (metabase#11439)", () => {
-      // save "Orders" as question
-      cy.createQuestion({
-        name: "11439",
-        query: { "source-table": ORDERS_ID },
-      });
+      cy.get(".TableInteractive-cellWrapper--firstColumn") // ID (first in the default order for Sample Database)
+        .eq(1) // first table body cell
+        .should("contain", 1)
+        .click();
 
-      // it is essential for this repro to find question following these exact steps
-      // (for example, visiting `/collection/root` would yield different result)
-      cy.visit("/");
-      cy.findByText("Ask a question").click();
-      cy.findByText("Simple question").click();
-      cy.findByText("Saved Questions").click();
-      cy.findByText("11439").click();
-      cy.findByText("Summarize").click();
-      cy.findByText("Group by")
-        .parent()
-        .within(() => {
-          cy.log("Reported failing since v0.33.5.1");
-          cy.log(
-            "**Marked as regression of [#10441](https://github.com/metabase/metabase/issues/10441)**",
-          );
-          getBinningButtonForDimension({
-            name: "Created At",
-          })
-            .should("have.text", "by month")
-            .click();
-        });
-      // this step is maybe redundant since it fails to even find "by month"
-      cy.findByText("Hour of Day");
-    });
-
-    it("should display timeseries filter and granularity widgets at the bottom of the screen (metabase#11183)", () => {
-      const questionDetails = {
-        name: "11183",
-        query: {
-          "source-table": ORDERS_ID,
-          aggregation: [["sum", ["field", ORDERS.SUBTOTAL, null]]],
-          breakout: [
-            ["field", ORDERS.CREATED_AT, { "temporal-unit": "month" }],
-          ],
-        },
-        display: "line",
-      };
-
-      cy.createQuestion(questionDetails, { visitQuestion: true });
-
-      cy.log("Reported missing in v0.33.1");
-      cy.get(".AdminSelect")
-        .as("select")
-        .contains(/All Time/i);
-      cy.get("@select").contains(/Month/i);
+      cy.get(".ObjectDetail");
     });
 
     // flaky test (#19454)
     it.skip("should show an info popover when hovering over summarize dimension options", () => {
       openReviewsTable();
 
-      cy.findByText("Summarize").click();
+      summarize();
       cy.findByText("Group by")
         .parent()
         .findByText("Title")
@@ -433,10 +343,8 @@ describe("scenarios > question > new", () => {
 
   describe("ask a (custom) question", () => {
     it("should load orders table", () => {
-      cy.visit("/");
-      cy.contains("Ask a question").click();
-      cy.contains("Custom question").click();
-      cy.contains("Sample Dataset").click();
+      openNotebookEditor();
+      cy.contains("Sample Database").click();
       cy.contains("Orders").click();
 
       visualize();
@@ -445,13 +353,7 @@ describe("scenarios > question > new", () => {
     });
 
     it("should show a table info popover when hovering over the table name in the header", () => {
-      cy.visit("/");
-      cy.contains("Ask a question").click();
-      cy.contains("Custom question").click();
-      cy.contains("Sample Dataset").click();
-      cy.contains("Orders").click();
-
-      visualize();
+      visitQuestion(1);
 
       cy.findByTestId("question-table-badges").trigger("mouseenter");
 
@@ -460,7 +362,7 @@ describe("scenarios > question > new", () => {
 
     it("should allow using `Custom Expression` in orders metrics (metabase#12899)", () => {
       openOrdersTable({ mode: "notebook" });
-      cy.findByText("Summarize").click();
+      summarize({ mode: "notebook" });
       popover()
         .contains("Custom Expression")
         .click();
@@ -480,7 +382,7 @@ describe("scenarios > question > new", () => {
         "Sum([Total]) / (Sum([Product → Price]) * Average([Quantity]))";
 
       openOrdersTable({ mode: "notebook" });
-      cy.findByText("Summarize").click();
+      summarize({ mode: "notebook" });
       popover()
         .contains("Custom Expression")
         .click();
@@ -497,7 +399,7 @@ describe("scenarios > question > new", () => {
 
     it("distinct inside custom expression should suggest non-numeric types (metabase#13469)", () => {
       openReviewsTable({ mode: "notebook" });
-      cy.findByText("Summarize").click();
+      summarize({ mode: "notebook" });
       popover()
         .contains("Custom Expression")
         .click();
@@ -513,11 +415,11 @@ describe("scenarios > question > new", () => {
       });
     });
 
-    it.skip("summarizing by distinct datetime should allow granular selection (metabase#13098)", () => {
+    it("summarizing by distinct datetime should allow granular selection (metabase#13098)", () => {
       // Go straight to orders table in custom questions
       cy.visit("/question/new?database=1&table=2&mode=notebook");
 
-      cy.findByText("Summarize").click();
+      summarize({ mode: "notebook" });
       popover().within(() => {
         cy.findByText("Number of distinct values of ...").click();
         cy.log(
@@ -531,37 +433,12 @@ describe("scenarios > question > new", () => {
           .click({ force: true });
       });
       // this should be among the granular selection choices
-      cy.findByText("Hour of day").click();
-    });
-
-    it("trend visualization should work regardless of column order (metabase#13710)", () => {
-      cy.server();
-      cy.createQuestion({
-        name: "13710",
-        query: {
-          "source-table": ORDERS_ID,
-          breakout: [
-            ["field", ORDERS.QUANTITY, null],
-            ["field", ORDERS.CREATED_AT, { "temporal-unit": "month" }],
-          ],
-        },
-        display: "smartscalar",
-      }).then(({ body: { id: questionId } }) => {
-        cy.route("POST", `/api/card/${questionId}/query`).as("cardQuery");
-
-        cy.visit(`/question/${questionId}`);
-        cy.findByText("13710");
-
-        cy.wait("@cardQuery");
-        cy.log("Reported failing on v0.35 - v0.37.0.2");
-        cy.log("Bug: showing blank visualization");
-        cy.get(".ScalarValue").contains("100");
-      });
+      cy.findByText("Hour of Day").click();
     });
 
     it("'read-only' user should be able to resize column width (metabase#9772)", () => {
       cy.signIn("readonly");
-      cy.visit("/question/1");
+      visitQuestion(1);
       cy.findByText("Tax")
         .closest(".TableInteractive-headerCellData")
         .as("headerCell")
