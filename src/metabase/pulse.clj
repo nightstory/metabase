@@ -272,7 +272,7 @@
   "Post a photo for a given Card by rendering its result into an image and sending it."
   [card-results chat-id pulse dashboard]
   (doall (for [{{card-id :id, card-name :name, :as card} :card, result :result, dashcard :dashcard} card-results]
-           (let [image-byte-array (render/render-pulse-card-to-png (defaulted-timezone card) card result telegram-width dashcard)]
+           (let [image-byte-array (render/render-pulse-card-to-png "Europe/London" card result telegram-width dashcard)]
              (telegram/post-photo! image-byte-array
                                    (telegram-pulse-alert-message card pulse dashboard)
                                    chat-id)))))
@@ -289,7 +289,7 @@
   "Post a photo for a given Card by rendering its result into an image and sending it, with other info attached"
   [card-results pulse dashboard]
   (doall (for [{{card-id :id, card-name :name, :as card} :card, result :result, dashcard :dashcard} card-results]
-           (let [image-byte-array (render/render-pulse-card-to-png (defaulted-timezone card) card result webhook-width dashcard)]
+           (let [image-byte-array (render/render-pulse-card-to-png "Europe/London" card result webhook-width dashcard)]
              (ds_webhook/post-event! image-byte-array dashboard dashcard pulse card)))))
 
 ;;; +----------------------------------------------------------------------------------------------------------------+

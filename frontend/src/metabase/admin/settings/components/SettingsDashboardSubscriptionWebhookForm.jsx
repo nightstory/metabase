@@ -6,7 +6,7 @@ import MetabaseUtils from "metabase/lib/utils";
 import SettingsSetting from "./SettingsSetting";
 import { updateDashboardSubscriptionWebhookSettings } from "../settings";
 
-import Button from "metabase/components/Button";
+import Button from "metabase/core/components/Button";
 
 import _ from "underscore";
 import { t } from "ttag";
